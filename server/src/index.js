@@ -932,7 +932,10 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'error interno', detail: err.message });
 });
 
-server.listen(PORT, () => {
-  console.log(`Kasupport server en http://localhost:${PORT}`);
-  console.log(`Widget embed: http://localhost:${PORT}/widget.js`);
+db.initDb().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Kasupport server en http://localhost:${PORT}`);
+    console.log(`Widget embed: http://localhost:${PORT}/widget.js`);
+  });
 });
+
