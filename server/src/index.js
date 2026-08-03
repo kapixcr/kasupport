@@ -4,7 +4,9 @@
  */
 const path = require('path');
 const express = require('express');
+require('express-async-errors');
 const cors = require('cors');
+
 const http = require('http');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');

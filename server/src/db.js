@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+const { Pool, Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -11,16 +11,39 @@ const pool = new Pool({
   connectionString,
 });
 
+pool.on('error', (err) => {
+  console.error('× Error en cliente inactivo de PostgreSQL:', err.message);
+});
+
 async function initDb() {
+  const schemaPath = path.join(__dirname, '..', 'schema.sql');
+  if (!fs.existsSync(schemaPath)) return;
+
   try {
-    const schemaPath = path.join(__dirname, '..', 'schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      const sql = fs.readFileSync(schemaPath, 'utf8');
-      await pool.query(sql);
-      console.log('✓ Base de datos e índices inicializados (schema.sql)');
-    }
+    const sql = fs.readFileSync(schemaPath, 'utf8');
+    await pool.query(sql);
+    console.log('✓ Base de datos e índices inicializados (schema.sql)');
   } catch (err) {
-    console.error('× Error al inicializar la base de datos:', err.message);
+    console.error('× Intento inicial en DB falló:', err.message);
+
+    // Si la base de datos 'kasupport' no existe (código 3D000)
+    if (err.code === '3D000' || err.message.includes('does not exist')) {
+      console.log('→ Intentando crear la base de datos "kasupport"...');
+      try {
+        const postgresUrl = connectionString.replace(/\/([^/?]+)(\?.*)?$/, '/postgres$2');
+        const adminClient = new Client({ connectionString: postgresUrl });
+        await adminClient.connect();
+        await adminClient.query('CREATE DATABASE kasupport;');
+        await adminClient.end();
+        console.log('✓ Base de datos "kasupport" creada con éxito. Aplicando esquema...');
+
+        const sql = fs.readFileSync(schemaPath, 'utf8');
+        await pool.query(sql);
+        console.log('✓ Esquema aplicado exitosamente');
+      } catch (createErr) {
+        console.error('× No se pudo auto-crear la base de datos:', createErr.message);
+      }
+    }
   }
 }
 
@@ -29,4 +52,5 @@ module.exports = {
   pool,
   initDb,
 };
+
 
