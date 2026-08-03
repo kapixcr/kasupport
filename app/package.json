@@ -1,0 +1,16 @@
+{
+  "name": "kasupport-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kasupport — app de escritorio tipo Slack (Electron)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "ELECTRON_DEV=1 electron .",
+    "build:renderer": "cd renderer && npm run build",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
