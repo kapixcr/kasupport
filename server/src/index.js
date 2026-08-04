@@ -71,16 +71,27 @@ async function broadcastMessage(message) {
   io.to('agents').emit('message:new', message);
 }
 
+const parseTheme = (t) => {
+  if (!t) return null;
+  if (typeof t === 'object') return t;
+  try {
+    return JSON.parse(t);
+  } catch {
+    return null;
+  }
+};
+
 const publicAgent = (a) => ({
   id: a.id, name: a.name, email: a.email, color: a.color, role: a.role, avatar: a.avatar || null,
   status_emoji: a.status_emoji || null,
   status_text: a.status_text || null,
-  theme: a.theme ? JSON.parse(a.theme) : null,
+  theme: parseTheme(a.theme),
   dark_mode: !!a.dark_mode,
   bg_image: a.bg_image || null,
   notif_enabled: !!a.notif_enabled,
   notif_sound: !!a.notif_sound,
 });
+
 
 /* ------------------------------- autenticación -------------------------------- */
 
