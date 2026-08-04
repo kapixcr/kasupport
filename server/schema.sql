@@ -44,11 +44,15 @@ CREATE TABLE IF NOT EXISTS channels (
   department_id INT REFERENCES departments(id) ON DELETE SET NULL,
   is_private    BOOLEAN NOT NULL DEFAULT false,
   post_policy   TEXT NOT NULL DEFAULT 'all',      -- all | admin
+  archived      BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE channels ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE channels ADD COLUMN IF NOT EXISTS post_policy TEXT NOT NULL DEFAULT 'all';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
+UPDATE channels SET archived = false WHERE archived IS NULL;
+
 
 CREATE TABLE IF NOT EXISTS channel_members (
   channel_id INT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,

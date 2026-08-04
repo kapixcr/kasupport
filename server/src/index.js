@@ -300,7 +300,7 @@ app.get('/api/channels', requireAuth, async (req, res) => {
             d.name AS department_name,
             EXISTS(SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.agent_id = $1) AS is_member
        FROM channels c LEFT JOIN departments d ON d.id = c.department_id
-      WHERE c.type = 'channel' AND c.archived = false
+      WHERE c.type = 'channel' AND (c.archived = false OR c.archived IS NULL)
         AND (c.is_private = false OR $2::boolean OR
              EXISTS(SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.agent_id = $1))
       ORDER BY c.type, c.name`,
@@ -316,9 +316,10 @@ app.post('/api/channels', requireAuth, async (req, res) => {
   if (is_private && req.agent.role !== 'admin') return res.status(403).json({ error: 'solo admin crea canales privados' });
 
   const { rows } = await db.query(
-    `INSERT INTO channels (name, type, is_private, post_policy) VALUES ($1, 'channel', $2, $3) RETURNING *`,
+    `INSERT INTO channels (name, type, is_private, post_policy, archived) VALUES ($1, 'channel', $2, $3, false) RETURNING *`,
     [name.trim().toLowerCase().replace(/\s+/g, '-'), !!is_private, post_policy]
   );
+
   const channel = rows[0];
   if (channel.is_private) {
     await db.query('INSERT INTO channel_members (channel_id, agent_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -415,7 +416,7 @@ app.get('/api/channels/:id/members', requireAuth, async (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/channels/:id/members', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/channels/:id/members', requireAuth, async (req, res) => {
   const { agentId } = req.body || {};
   if (!agentId) return res.status(400).json({ error: 'agentId requerido' });
   await db.query('INSERT INTO channel_members (channel_id, agent_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -424,12 +425,13 @@ app.post('/api/channels/:id/members', requireAuth, requireAdmin, async (req, res
   res.status(201).json({ ok: true });
 });
 
-app.delete('/api/channels/:id/members/:agentId', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/api/channels/:id/members/:agentId', requireAuth, async (req, res) => {
   await db.query('DELETE FROM channel_members WHERE channel_id = $1 AND agent_id = $2',
     [req.params.id, req.params.agentId]);
   io.to('agents').emit('channel:update', { id: Number(req.params.id) });
   res.json({ ok: true });
 });
+
 
 app.delete('/api/channels/:id', requireAuth, requireAdmin, async (req, res) => {
   const { rows } = await db.query(
