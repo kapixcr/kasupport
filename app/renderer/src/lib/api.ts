@@ -1,9 +1,12 @@
 import { io } from "socket.io-client";
 
 export const API: string =
-  (import.meta.env.VITE_API_URL as string) || "http://localhost:4100";
+  localStorage.getItem("kasupport_api_url") ||
+  (import.meta.env.VITE_API_URL as string) ||
+  "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io";
 
 export const socket = io(API, { transports: ["websocket", "polling"] });
+
 
 // Id del agente logueado, para presencia (se registra al iniciar sesión)
 let currentAgentId: number | null = null;
@@ -174,15 +177,22 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(`${API}${path}`, { headers, ...init });
+
+  let r: Response;
+  try {
+    r = await fetch(`${API}${path}`, { headers, ...init });
+  } catch (err) {
+    throw new Error(`No se pudo conectar con el servidor backend (${API})`);
+  }
+
   if (r.status === 401) {
     setToken(null);
-    window.location.reload();
-    throw new Error("sesión expirada");
+    throw new Error("sesión expirada o credenciales incorrectas");
   }
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 }
+
 
 /* --------------------------------- endpoints -------------------------------- */
 
@@ -207,6 +217,12 @@ export const api = {
   agents: () => req<Agent[]>("/api/agents"),
   setAgentRole: (id: number, role: string) =>
     req<Agent>(`/api/agents/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  changeAgentPassword: (id: number, password: string) =>
+    req<{ ok: boolean }>(`/api/agents/${id}/password`, {
+      method: "PATCH",
+      body: JSON.stringify({ password }),
+    }),
+
 
   // Departamentos
   departments: () => req<Department[]>("/api/departments"),

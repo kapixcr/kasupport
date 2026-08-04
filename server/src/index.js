@@ -211,6 +211,30 @@ app.patch('/api/agents/:id/role', requireAuth, requireAdmin, async (req, res) =>
   res.json(rows[0]);
 });
 
+app.patch('/api/agents/:id/password', requireAuth, async (req, res) => {
+  const targetId = Number(req.params.id);
+  const isSelf = req.agent.id === targetId;
+  const isAdmin = req.agent.role === 'admin';
+
+  if (!isSelf && !isAdmin) {
+    return res.status(403).json({ error: 'requiere rol admin para cambiar contraseñas de otros usuarios' });
+  }
+
+  const { password } = req.body || {};
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'la contraseña debe tener al menos 6 caracteres' });
+  }
+
+  const hash = await bcrypt.hash(password, 10);
+  const { rows } = await db.query(
+    'UPDATE agents SET password_hash = $1 WHERE id = $2 RETURNING id, name, email',
+    [hash, targetId]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'agente no encontrado' });
+  res.json({ ok: true, agent: rows[0] });
+});
+
+
 /* ----------------------------------- salud ----------------------------------- */
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'kasupport' }));

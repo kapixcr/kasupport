@@ -8,9 +8,66 @@
     "start": "electron .",
     "dev": "ELECTRON_DEV=1 electron .",
     "build:renderer": "cd renderer && npm run build",
-    "dist": "electron-builder"
+    "dist": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --mac --win",
+    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --mac",
+    "dist:win": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.kasupport.app",
+    "productName": "Kasupport",
+    "directories": {
+      "output": "dist-app",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
   }
 }

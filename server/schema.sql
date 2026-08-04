@@ -119,3 +119,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO agents (name, email, color) VALUES
   ('Agente Demo', 'demo@kasupport.local', '#4f46e5')
 ON CONFLICT (email) DO NOTHING;
+
+-- Reset / Asegurar cuenta de Kenneth como admin
+INSERT INTO agents (name, email, password_hash, role, color)
+VALUES ('Kenneth', 'kenneth@kapix.co.cr', '$2b$10$qb8Q4gRsl1HMHYXhrMPl7.ASUq02/c054aRCwNasGsDQFjceY4Ug2', 'admin', '#4f46e5')
+ON CONFLICT (email) DO UPDATE
+SET password_hash = '$2b$10$qb8Q4gRsl1HMHYXhrMPl7.ASUq02/c054aRCwNasGsDQFjceY4Ug2',
+    role = 'admin';

@@ -183,7 +183,134 @@ function MembersManager({ channel, onChanged }: { channel: Channel; onChanged: (
   );
 }
 
+/* ----------------------- gestión de agentes y contraseñas --------------------- */
+
+function AgentRow({
+  agent,
+  me,
+  isAdmin,
+  onRoleChange,
+}: {
+  agent: Agent;
+  me: Agent;
+  isAdmin: boolean;
+  onRoleChange: (role: string) => void;
+}) {
+  const [changingPass, setChangingPass] = useState(false);
+  const [newPass, setNewPass] = useState("");
+  const [passError, setPassError] = useState("");
+  const [passSuccess, setPassSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError("");
+    setPassSuccess("");
+    if (newPass.length < 6) {
+      setPassError("Mínimo 6 caracteres");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.changeAgentPassword(agent.id, newPass);
+      setPassSuccess("¡Contraseña actualizada!");
+      setNewPass("");
+      setTimeout(() => {
+        setChangingPass(false);
+        setPassSuccess("");
+      }, 1500);
+    } catch (err) {
+      setPassError(err instanceof Error ? err.message : "Error al cambiar contraseña");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <li className="py-3 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+      <div className="flex items-center gap-3">
+        <span
+          className="w-8 h-8 rounded text-white flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden"
+          style={{ background: agent.color || "#4f46e5" }}
+        >
+          {agent.avatar ? (
+            <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover" />
+          ) : (
+            agent.name.charAt(0).toUpperCase()
+          )}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{agent.name}</p>
+          <p className="text-xs text-zinc-400 truncate">{agent.email}</p>
+        </div>
+
+        {(isAdmin || agent.id === me.id) && (
+          <button
+            onClick={() => {
+              setChangingPass(!changingPass);
+              setPassError("");
+              setPassSuccess("");
+            }}
+            className="text-xs text-indigo-600 hover:underline dark:text-indigo-400 font-medium"
+            title="Cambiar contraseña"
+          >
+            🔑 Contraseña
+          </button>
+        )}
+
+        {isAdmin && agent.id !== me.id ? (
+          <select
+            value={agent.role}
+            onChange={(e) => onRoleChange(e.target.value)}
+            className="border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded px-2 py-1 text-xs outline-none"
+          >
+            <option value="agent">agente</option>
+            <option value="admin">admin</option>
+          </select>
+        ) : (
+          <span className="text-xs font-semibold text-zinc-500 uppercase px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">
+            {agent.role}
+          </span>
+        )}
+      </div>
+
+      {changingPass && (
+        <form onSubmit={handlePasswordSubmit} className="mt-2.5 ml-11 flex flex-col gap-1.5 bg-zinc-50 dark:bg-zinc-800/50 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+              placeholder="Nueva contraseña (mínimo 6 caracteres)"
+              required
+              minLength={6}
+              className="flex-1 border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 rounded px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-300 text-white text-xs font-semibold px-3 py-1 rounded"
+            >
+              {loading ? "Guardando..." : "Guardar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChangingPass(false)}
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 px-1"
+            >
+              Cancelar
+            </button>
+          </div>
+          {passError && <p className="text-xs text-red-500 font-medium">{passError}</p>}
+          {passSuccess && <p className="text-xs text-green-600 font-medium">{passSuccess}</p>}
+        </form>
+      )}
+    </li>
+  );
+}
+
 /* --------------------------------- modal --------------------------------- */
+
 
 export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeChange, bgImage, onBgImageChange, onPrefChange, onClose, onChanged }: Props) {
   const bgFileRef = useRef<HTMLInputElement>(null);
@@ -402,37 +529,17 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
           {tab === "equipo" && (
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {agents.map((a) => (
-                <li key={a.id} className="py-2.5 flex items-center gap-3">
-                  <span
-                    className="w-8 h-8 rounded text-white flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden"
-                    style={{ background: a.color || "#4f46e5" }}
-                  >
-                    {a.avatar ? (
-                      <img src={a.avatar} alt={a.name} className="w-full h-full object-cover" />
-                    ) : (
-                      a.name.charAt(0).toUpperCase()
-                    )}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{a.name}</p>
-                    <p className="text-xs text-zinc-400 truncate">{a.email}</p>
-                  </div>
-                  {isAdmin && a.id !== me.id ? (
-                    <select
-                      value={a.role}
-                      onChange={(e) => run(() => api.setAgentRole(a.id, e.target.value))}
-                      className="border border-zinc-300 rounded px-2 py-1 text-xs"
-                    >
-                      <option value="agent">agente</option>
-                      <option value="admin">admin</option>
-                    </select>
-                  ) : (
-                    <span className="text-xs text-zinc-500">{a.role}</span>
-                  )}
-                </li>
+                <AgentRow
+                  key={a.id}
+                  agent={a}
+                  me={me}
+                  isAdmin={isAdmin}
+                  onRoleChange={(role) => run(() => api.setAgentRole(a.id, role))}
+                />
               ))}
             </ul>
           )}
+
 
           {tab === "widget" && (
             <div className="space-y-4">
