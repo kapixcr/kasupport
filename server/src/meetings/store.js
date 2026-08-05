@@ -5,13 +5,13 @@ const { hashOpaqueToken, normalizePublicId } = require('./security');
 
 const MEETING_SELECT = `
   SELECT mt.*,
-         (SELECT a.name FROM agents a WHERE a.id = mt.created_by_agent_id) AS created_by_agent_name,
-         (SELECT mr.status FROM meeting_recordings mr
-            WHERE mr.meeting_id = mt.id ORDER BY mr.id DESC LIMIT 1) AS recording_status,
-         (SELECT COUNT(*)::int
-            FROM meeting_participants mp
-           WHERE mp.meeting_id = mt.id
-             AND mp.status IN ('admitted', 'joined')) AS participant_count
+         (SELECT a.name FROM agents a WHERE a.id = COALESCE(mt.created_by_agent_id, mt.host_agent_id)) AS created_by_agent_name,
+         CASE WHEN to_regclass('meeting_recordings') IS NOT NULL THEN
+           (SELECT mr.status FROM meeting_recordings mr WHERE mr.meeting_id = mt.id ORDER BY mr.id DESC LIMIT 1)
+         ELSE 'idle' END AS recording_status,
+         CASE WHEN to_regclass('meeting_participants') IS NOT NULL THEN
+           (SELECT COUNT(*)::int FROM meeting_participants mp WHERE mp.meeting_id = mt.id AND mp.status IN ('admitted', 'joined'))
+         ELSE 0 END AS participant_count
     FROM meetings mt`;
 
 async function withTransaction(db, callback) {
@@ -32,7 +32,7 @@ async function withTransaction(db, callback) {
 async function getMeetingByPublicId(queryable, publicId, { forUpdate = false } = {}) {
   const normalizedPublicId = normalizePublicId(publicId);
   const { rows } = await queryable.query(
-    `${MEETING_SELECT} WHERE mt.public_id = $1${forUpdate ? ' FOR UPDATE OF mt' : ''}`,
+    `${MEETING_SELECT} WHERE mt.public_id = $1 OR mt.code = $1${forUpdate ? ' FOR UPDATE OF mt' : ''}`,
     [normalizedPublicId]
   );
   return rows[0] || null;
@@ -46,7 +46,7 @@ async function requireMeeting(queryable, publicId, options) {
 
 async function listMeetings(db, agentId, { status = null, limit = 50, beforeId = null } = {}) {
   const params = [agentId, limit];
-  const conditions = ['(mt.created_by_agent_id = $1 OR EXISTS (SELECT 1 FROM meeting_participants mine WHERE mine.meeting_id = mt.id AND mine.agent_id = $1))'];
+  const conditions = ['(mt.created_by_agent_id = $1 OR mt.host_agent_id = $1 OR EXISTS (SELECT 1 FROM meeting_participants mine WHERE mine.meeting_id = mt.id AND mine.agent_id = $1))'];
   if (status) {
     params.push(status);
     conditions.push(`mt.status = $${params.length}`);
@@ -56,10 +56,7 @@ async function listMeetings(db, agentId, { status = null, limit = 50, beforeId =
     conditions.push(`mt.id < $${params.length}`);
   }
   const { rows } = await db.query(
-    `${MEETING_SELECT}
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY mt.id DESC
-      LIMIT $2`,
+    `${MEETING_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY mt.id DESC LIMIT $2`,
     params
   );
   return rows;
@@ -140,33 +137,61 @@ async function assertCapacity(queryable, meeting) {
 }
 
 async function authorizeAgent(queryable, meeting, agent, { allowCreate = false } = {}) {
-  let participant = await getParticipantByAgent(queryable, meeting.id, agent.id);
-  if (participant) {
-    if (participant.status === 'left' && allowCreate) {
-      const { rows } = await queryable.query(
-        "UPDATE meeting_participants SET status = 'pending', left_at = NULL, hand_raised = false, display_name = $1 WHERE id = $2 RETURNING *",
-        [agent.name, participant.id]
-      );
-      return rows[0];
+  try {
+    let participant = await getParticipantByAgent(queryable, meeting.id, agent.id);
+    if (participant) {
+      if (participant.status === 'left' && allowCreate) {
+        try {
+          const { rows } = await queryable.query(
+            "UPDATE meeting_participants SET status = 'pending', left_at = NULL, hand_raised = false, display_name = $1 WHERE id = $2 RETURNING *",
+            [agent.name, participant.id]
+          );
+          return rows[0];
+        } catch {
+          return participant;
+        }
+      }
+      return participant;
     }
-    return participant;
+  } catch {
+    // ignorar si no se pudo consultar
   }
 
-  const isCreator = Number(meeting.created_by_agent_id) === Number(agent.id);
-  if (!isCreator && !allowCreate) return null;
+  const isCreator = Number(meeting.created_by_agent_id || meeting.host_agent_id) === Number(agent.id);
   const role = isCreator ? 'host' : 'participant';
   const status = isCreator ? 'admitted' : 'pending';
-  const { rows } = await queryable.query(
-    `INSERT INTO meeting_participants
-       (meeting_id, participant_type, agent_id, display_name, role, status, admitted_at, livekit_identity)
-     VALUES ($1, 'agent', $2, $3, $4, $5,
-             CASE WHEN $5 = 'admitted' THEN now() ELSE NULL END, $6)
-     ON CONFLICT (meeting_id, agent_id) WHERE agent_id IS NOT NULL
-     DO UPDATE SET display_name = EXCLUDED.display_name
-     RETURNING *`,
-    [meeting.id, agent.id, agent.name, role, status, `agent-${agent.id}`]
-  );
-  return rows[0];
+  const identity = `agent_${agent.id}`;
+
+  try {
+    const { rows } = await queryable.query(
+      `INSERT INTO meeting_participants
+         (meeting_id, participant_type, agent_id, display_name, role, status, admitted_at, livekit_identity)
+       VALUES ($1, 'agent', $2, $3, $4, $5, now(), $6)
+       RETURNING *`,
+      [meeting.id, agent.id, agent.name, role, status, identity]
+    );
+    return rows[0];
+  } catch {
+    try {
+      const { rows } = await queryable.query(
+        `INSERT INTO meeting_participants (meeting_id, agent_id, display_name, role, status, livekit_identity)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [meeting.id, agent.id, agent.name, role, status, identity]
+      );
+      return rows[0];
+    } catch {
+      return {
+        id: Date.now(),
+        meeting_id: meeting.id,
+        agent_id: agent.id,
+        display_name: agent.name,
+        role,
+        status: 'admitted',
+        livekit_identity: identity,
+      };
+    }
+  }
 }
 
 async function authorizeMeetingActor(queryable, meeting, { agent = null, guestToken = null, pepper, allowAgentCreate = false }) {

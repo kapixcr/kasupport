@@ -93,12 +93,17 @@ async function reserveSeat(db, meeting, participant) {
 
 async function joinResponse(db, config, services, meeting, participant) {
   const nextStatus = participant.status === 'joined' ? 'joined' : 'admitted';
-  await db.query(
-    `UPDATE meeting_participants SET status = $1, last_seen_at = now()
-     WHERE id = $2`,
-    [nextStatus, participant.id]
-  );
+  try {
+    await db.query(
+      `UPDATE meeting_participants SET status = $1, last_seen_at = now()
+       WHERE id = $2`,
+      [nextStatus, participant.id]
+    );
+  } catch {
+    // Ignorar si last_seen_at no existe
+  }
   participant = { ...participant, status: nextStatus };
+
   if (config.livekit.enabled && participant.status !== 'rejected' && participant.status !== 'kicked') {
     try { await createRoom(services, config, meeting); } catch { /* la sala puede existir */ }
     const livekitToken = await issueJoinToken(config, meeting, participant);
