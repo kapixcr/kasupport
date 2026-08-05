@@ -47,6 +47,11 @@ app.use(express.json({
 })); // 25mb para subidas en base64 y body original para webhooks firmados
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+app.get('/api/healthcheck', (_req, res) => {
+  res.json({ status: 'ok', version: '2026-08-04-v2-meetings-fix', time: new Date().toISOString() });
+});
+
+
 /* ---------------------------------- helpers ---------------------------------- */
 
 const REACTIONS_SQL = `COALESCE((
