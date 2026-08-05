@@ -58,8 +58,9 @@ async function initDb() {
   } catch (err) {
     console.error('× Intento inicial en DB falló:', err.message);
 
-    // Si la base de datos 'kasupport' no existe (código 3D000)
-    if (err.code === '3D000' || err.message.includes('does not exist')) {
+    // Si la base de datos 'kasupport' no existe en PostgreSQL (código SQL Standard 3D000)
+    if (err.code === '3D000') {
+
       console.log('→ Intentando crear la base de datos "kasupport"...');
       try {
         const postgresUrl = connectionString.replace(/\/([^/?]+)(\?.*)?$/, '/postgres$2');
