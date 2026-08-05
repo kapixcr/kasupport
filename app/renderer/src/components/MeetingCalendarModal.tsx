@@ -94,6 +94,7 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
   }, [activeTab, selectedAgentId, selectedDate]);
 
   const handleCancelMeeting = async (publicId: string) => {
+    if (!publicId) return;
     if (!confirm("¿Seguro que deseas cancelar y eliminar esta reunión?")) return;
     try {
       const res = await fetch(`${API}/api/meetings/${publicId}`, {
@@ -102,11 +103,16 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
       });
       if (res.ok) {
         void loadCalendar();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error al cancelar: ${err.error || err.detail || res.statusText}`);
       }
     } catch (e) {
       console.error("Error al cancelar reunión:", e);
+      alert("No se pudo enviar la solicitud de cancelación.");
     }
   };
+
 
   /* ------------------------------ Programar ------------------------------ */
 

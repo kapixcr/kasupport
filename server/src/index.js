@@ -48,8 +48,9 @@ app.use(express.json({
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/healthcheck', (_req, res) => {
-  res.json({ status: 'ok', version: '2026-08-04-v2-meetings-fix', time: new Date().toISOString() });
+  res.json({ status: 'ok', version: '2026-08-04-v5-cancel-end-fix', time: new Date().toISOString() });
 });
+
 
 
 /* ---------------------------------- helpers ---------------------------------- */

@@ -32,11 +32,12 @@ async function withTransaction(db, callback) {
 async function getMeetingByPublicId(queryable, publicId, { forUpdate = false } = {}) {
   const normalizedPublicId = normalizePublicId(publicId);
   const { rows } = await queryable.query(
-    `${MEETING_SELECT} WHERE mt.public_id = $1 OR mt.code = $1${forUpdate ? ' FOR UPDATE OF mt' : ''}`,
+    `${MEETING_SELECT} WHERE mt.public_id = $1 OR mt.code = $1 OR mt.id::text = $1${forUpdate ? ' FOR UPDATE OF mt' : ''}`,
     [normalizedPublicId]
   );
   return rows[0] || null;
 }
+
 
 async function requireMeeting(queryable, publicId, options) {
   const meeting = await getMeetingByPublicId(queryable, publicId, options);
