@@ -1,19 +1,482 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; connect-src 'self' https: http: wss: ws:; media-src 'self' blob: https: http:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kasupport Meet — Videollamadas en Tiempo Real</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #fff; }
+    .video-mirror { transform: scaleX(-1); }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-zinc-950 select-none">
 
-    />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#09090b" />
-    <title>Kasupport</title>
-    <script type="module" crossorigin src="./assets/index-C-ncKz_S.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CJUqcM_P.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+  <!-- Header -->
+  <header id="app-header" class="px-6 py-3 bg-zinc-900/90 backdrop-blur border-b border-white/10 flex items-center justify-between shrink-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">📹</div>
+      <div>
+        <h1 id="meeting-title" class="font-bold text-sm text-white">Kasupport Meet</h1>
+        <p id="meeting-code-display" class="text-xs text-zinc-400 font-mono"></p>
+      </div>
+    </div>
+
+    <div id="header-actions" class="flex items-center gap-2 hidden">
+      <button onclick="copyMeetingLink()" class="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-xl border border-white/10 transition-all flex items-center gap-1.5">
+        <span id="copy-btn-text">🔗 Copiar Enlace</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main id="main-content" class="flex-1 flex flex-col items-center justify-center relative p-4 overflow-hidden min-h-0">
+
+    <!-- Screen 1: Home / Landing -->
+    <div id="screen-home" class="max-w-md w-full bg-zinc-900 border border-white/10 rounded-3xl p-8 text-center shadow-2xl space-y-6">
+      <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto text-3xl border border-indigo-500/30">
+        📹
+      </div>
+      <div>
+        <h2 class="text-2xl font-bold text-white">Kasupport Meet</h2>
+        <p class="text-xs text-zinc-400 mt-1">Videollamadas y reuniones en tiempo real sin instalaciones.</p>
+      </div>
+
+      <div class="space-y-3">
+        <button onclick="createQuickMeeting()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm">
+          🚀 Crear Nueva Reunión
+        </button>
+
+        <div class="relative flex py-2 items-center">
+          <div class="flex-grow border-t border-zinc-800"></div>
+          <span class="flex-shrink mx-4 text-[10px] text-zinc-500 uppercase font-semibold">o ingresar código</span>
+          <div class="flex-grow border-t border-zinc-800"></div>
+        </div>
+
+        <div class="flex gap-2">
+          <input id="input-code" placeholder="Código (ej. abc-123)" class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+          <button onclick="joinWithInputCode()" class="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold border border-white/10">
+            Unirse
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2: Pre-join Lobby -->
+    <div id="screen-lobby" class="max-w-md w-full bg-zinc-900 border border-white/10 rounded-3xl p-6 text-center shadow-2xl space-y-4 hidden">
+      <div class="relative aspect-video bg-black rounded-2xl overflow-hidden border border-white/10">
+        <video id="lobby-video" autoplay playsinline muted class="w-full h-full object-cover video-mirror"></video>
+        <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+          <button id="lobby-btn-mic" onclick="toggleLobbyMic()" class="w-10 h-10 rounded-xl bg-zinc-800/80 backdrop-blur text-white flex items-center justify-center text-lg border border-white/10">🎙️</button>
+          <button id="lobby-btn-cam" onclick="toggleLobbyCam()" class="w-10 h-10 rounded-xl bg-zinc-800/80 backdrop-blur text-white flex items-center justify-center text-lg border border-white/10">📷</button>
+        </div>
+      </div>
+
+      <div>
+        <h3 id="lobby-title" class="font-bold text-lg text-white">Reunión Kasupport</h3>
+        <p id="lobby-code" class="text-xs text-indigo-400 font-mono"></p>
+      </div>
+
+      <div class="text-left space-y-1">
+        <label class="text-xs font-semibold text-zinc-400">Tu nombre para ingresar:</label>
+        <input id="input-name" placeholder="Ej. Carlos Mendoza" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+      </div>
+
+      <button onclick="startMeetingSession()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm">
+        Unirse a la llamada 🚀
+      </button>
+    </div>
+
+    <!-- Screen 3: Active Video Meeting Grid + Drawer -->
+    <div id="screen-room" class="w-full h-full flex flex-col hidden relative overflow-hidden">
+      <div class="flex-1 flex min-h-0 relative">
+        <!-- Video Grid -->
+        <div id="video-grid" class="flex-1 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-center justify-center overflow-y-auto">
+          <!-- Videos dynamically rendered -->
+        </div>
+
+        <!-- Chat Drawer -->
+        <aside id="room-drawer" class="w-80 bg-zinc-900 border-l border-white/10 flex flex-col hidden shrink-0 z-20">
+          <div class="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-white">Chat de la reunión</h3>
+            <button onclick="closeDrawer()" class="text-zinc-400 hover:text-white font-bold text-lg">✕</button>
+          </div>
+
+          <!-- Chat List -->
+          <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3">
+            <p class="text-[11px] text-zinc-500 text-center italic">Los mensajes son visibles solo durante esta llamada.</p>
+          </div>
+
+          <!-- Chat Form -->
+          <form onsubmit="sendChatMessage(event)" class="p-3 border-t border-white/10 flex gap-2">
+            <input id="chat-input" placeholder="Enviar mensaje a todos..." class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold">Enviar</button>
+          </form>
+        </aside>
+      </div>
+
+      <!-- Control Bar Footer -->
+      <footer class="px-6 py-4 bg-zinc-900 border-t border-white/10 flex items-center justify-between shrink-0 z-30">
+        <div class="flex items-center gap-2">
+          <button onclick="toggleDrawer()" class="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-white/10">
+            💬 <span>Chat</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button id="btn-mic" onclick="toggleMic()" class="w-12 h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white text-xl flex items-center justify-center border border-white/10 shadow-lg">🎙️</button>
+          <button id="btn-cam" onclick="toggleCam()" class="w-12 h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white text-xl flex items-center justify-center border border-white/10 shadow-lg">📷</button>
+          <button id="btn-share" onclick="toggleShareScreen()" class="w-12 h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white text-xl flex items-center justify-center border border-white/10 shadow-lg">🖥️</button>
+          <button id="btn-hand" onclick="toggleHand()" class="w-12 h-12 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white text-xl flex items-center justify-center border border-white/10 shadow-lg">✋</button>
+          <button onclick="leaveMeeting()" class="bg-red-600 hover:bg-red-500 text-white px-5 h-12 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-xl">
+            <span>Salir</span> 🚪
+          </button>
+        </div>
+
+        <div class="text-xs text-zinc-500 font-mono hidden sm:block">Kasupport Meet</div>
+      </footer>
+    </div>
+
+  </main>
+
+  <!-- Client JavaScript -->
+  <script>
+    const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+    let currentCode = "";
+    let socket = null;
+    let localStream = null;
+    let screenStream = null;
+    let peerConnections = new Map(); // peerId -> RTCPeerConnection
+    let micEnabled = true;
+    let camEnabled = true;
+    let isSharing = false;
+    let isHandRaised = false;
+
+    // Detectar código de reunión en la URL al cargar
+    window.addEventListener("DOMContentLoaded", () => {
+      initSocket();
+      parseUrlCode();
+    });
+
+    window.addEventListener("hashchange", parseUrlCode);
+
+    function parseUrlCode() {
+      let code = "";
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+
+      if (hash.includes("#meet/")) {
+        code = hash.split("#meet/")[1];
+      } else if (path.includes("/meet/")) {
+        code = path.split("/meet/")[1];
+      }
+
+      if (code) {
+        code = code.trim();
+        currentCode = code;
+        showLobby(code);
+      } else {
+        showScreen("screen-home");
+      }
+    }
+
+    function initSocket() {
+      socket = io({ transparent: true });
+
+      socket.on("meeting:state", (data) => {
+        if (data.code !== currentCode) return;
+        updateParticipantsGrid(data.participants);
+
+        // Crear ofertas WebRTC para nuevos participantes
+        data.participants.forEach((p) => {
+          if (p.id !== socket.id && !peerConnections.has(p.id)) {
+            createPeerOffer(p.id);
+          }
+        });
+      });
+
+      socket.on("meeting:signal", async (d) => {
+        if (d.code !== currentCode) return;
+        const pc = getOrCreatePC(d.from);
+
+        if (d.data.candidate) {
+          try { await pc.addIceCandidate(d.data.candidate); } catch {}
+        }
+        if (d.data.sdp) {
+          await pc.setRemoteDescription(d.data.sdp);
+          if (d.data.sdp.type === "offer") {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit("meeting:signal", {
+              code: currentCode,
+              to: d.from,
+              data: { sdp: pc.localDescription },
+            });
+          }
+        }
+      });
+
+      socket.on("meeting:chat_message", (msg) => {
+        appendChatMessage(msg);
+      });
+    }
+
+    function showScreen(id) {
+      ["screen-home", "screen-lobby", "screen-room"].forEach((s) => {
+        document.getElementById(s).classList.add("hidden");
+      });
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    function showLobby(code) {
+      document.getElementById("lobby-code").textContent = `Código: ${code}`;
+      document.getElementById("meeting-code-display").textContent = `Código: ${code}`;
+      document.getElementById("header-actions").classList.remove("hidden");
+      showScreen("screen-lobby");
+      setupLobbyPreview();
+    }
+
+    async function setupLobbyPreview() {
+      try {
+        if (!localStream) {
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        }
+        const v = document.getElementById("lobby-video");
+        v.srcObject = localStream;
+      } catch (e) {
+        console.warn("No se pudo acceder a la cámara:", e);
+      }
+    }
+
+    async function createQuickMeeting() {
+      try {
+        const res = await fetch("/api/meetings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "Reunión Kasupport" }),
+        });
+        const data = await res.json();
+        const code = data.public_id || data.code || (data.meeting && data.meeting.public_id);
+        if (code) {
+          window.location.hash = `#meet/${code}`;
+        } else {
+          alert("Error al crear la reunión.");
+        }
+      } catch {
+        alert("Error de conexión con el servidor.");
+      }
+    }
+
+    function joinWithInputCode() {
+      const code = document.getElementById("input-code").value.trim();
+      if (code) {
+        window.location.hash = `#meet/${code}`;
+      }
+    }
+
+    async function startMeetingSession() {
+      const nameInput = document.getElementById("input-name").value.trim();
+      const displayName = nameInput || "Invitado";
+
+      if (!localStream) {
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        } catch {
+          alert("Permiso de cámara/micrófono denegado");
+          return;
+        }
+      }
+
+      showScreen("screen-room");
+      renderLocalVideo(displayName);
+
+      socket.emit("meeting:join", {
+        code: currentCode,
+        name: displayName,
+        isGuest: true,
+      });
+    }
+
+    function renderLocalVideo(name) {
+      const grid = document.getElementById("video-grid");
+      let container = document.getElementById("video-container-local");
+      if (!container) {
+        container = document.createElement("div");
+        container.id = "video-container-local";
+        container.className = "relative bg-black rounded-2xl overflow-hidden border border-white/10 aspect-video shadow-xl flex items-center justify-center";
+        container.innerHTML = `
+          <video id="video-element-local" autoplay playsinline muted class="w-full h-full object-cover video-mirror"></video>
+          <span class="absolute bottom-3 left-3 text-xs font-semibold text-white bg-black/70 backdrop-blur rounded-lg px-2.5 py-1 border border-white/10">
+            ${name} (tú)
+          </span>
+        `;
+        grid.appendChild(container);
+      }
+      const v = document.getElementById("video-element-local");
+      v.srcObject = isSharing ? screenStream : localStream;
+    }
+
+    function getOrCreatePC(peerId) {
+      if (peerConnections.has(peerId)) return peerConnections.get(peerId);
+
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          socket.emit("meeting:signal", { code: currentCode, to: peerId, data: { candidate: e.candidate.toJSON() } });
+        }
+      };
+
+      pc.ontrack = (e) => {
+        if (e.streams[0]) {
+          renderRemoteVideo(peerId, e.streams[0]);
+        }
+      };
+
+      if (localStream) {
+        localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+      }
+
+      peerConnections.set(peerId, pc);
+      return pc;
+    }
+
+    async function createPeerOffer(peerId) {
+      const pc = getOrCreatePC(peerId);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("meeting:signal", { code: currentCode, to: peerId, data: { sdp: pc.localDescription } });
+    }
+
+    function renderRemoteVideo(peerId, stream) {
+      const grid = document.getElementById("video-grid");
+      let container = document.getElementById(`video-container-${peerId}`);
+      if (!container) {
+        container = document.createElement("div");
+        container.id = `video-container-${peerId}`;
+        container.className = "relative bg-black rounded-2xl overflow-hidden border border-white/10 aspect-video shadow-xl flex items-center justify-center";
+        container.innerHTML = `
+          <video id="video-element-${peerId}" autoplay playsinline class="w-full h-full object-cover"></video>
+          <span id="video-label-${peerId}" class="absolute bottom-3 left-3 text-xs font-semibold text-white bg-black/70 backdrop-blur rounded-lg px-2.5 py-1 border border-white/10">
+            Participante
+          </span>
+        `;
+        grid.appendChild(container);
+      }
+      const v = document.getElementById(`video-element-${peerId}`);
+      v.srcObject = stream;
+    }
+
+    function updateParticipantsGrid(participants) {
+      const grid = document.getElementById("video-grid");
+      const activeIds = new Set(participants.map((p) => String(p.id)));
+
+      // Eliminar videos desconectados
+      peerConnections.forEach((_, peerId) => {
+        if (!activeIds.has(String(peerId))) {
+          const el = document.getElementById(`video-container-${peerId}`);
+          if (el) el.remove();
+          peerConnections.get(peerId)?.close();
+          peerConnections.delete(peerId);
+        }
+      });
+    }
+
+    function toggleMic() {
+      if (!localStream) return;
+      const track = localStream.getAudioTracks()[0];
+      if (track) {
+        track.enabled = !track.enabled;
+        micEnabled = track.enabled;
+        document.getElementById("btn-mic").classList.toggle("bg-red-600", !micEnabled);
+      }
+    }
+
+    function toggleCam() {
+      if (!localStream) return;
+      const track = localStream.getVideoTracks()[0];
+      if (track) {
+        track.enabled = !track.enabled;
+        camEnabled = track.enabled;
+        document.getElementById("btn-cam").classList.toggle("bg-red-600", !camEnabled);
+      }
+    }
+
+    async function toggleShareScreen() {
+      if (isSharing) {
+        screenStream?.getTracks().forEach((t) => t.stop());
+        screenStream = null;
+        isSharing = false;
+        renderLocalVideo(document.getElementById("input-name").value || "Invitado");
+        document.getElementById("btn-share").classList.remove("bg-indigo-600");
+      } else {
+        try {
+          screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          isSharing = true;
+          renderLocalVideo(document.getElementById("input-name").value || "Invitado");
+          document.getElementById("btn-share").classList.add("bg-indigo-600");
+        } catch {}
+      }
+    }
+
+    function toggleHand() {
+      isHandRaised = !isHandRaised;
+      socket.emit("meeting:hand_raise", { code: currentCode, raised: isHandRaised });
+      document.getElementById("btn-hand").classList.toggle("ring-4", isHandRaised);
+    }
+
+    function toggleDrawer() {
+      const d = document.getElementById("room-drawer");
+      d.classList.toggle("hidden");
+    }
+
+    function closeDrawer() {
+      document.getElementById("room-drawer").classList.add("hidden");
+    }
+
+    function sendChatMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("chat-input");
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      socket.emit("meeting:chat_message", { code: currentCode, text, name: document.getElementById("input-name").value || "Invitado" });
+    }
+
+    function appendChatMessage(msg) {
+      const container = document.getElementById("chat-messages");
+      const div = document.createElement("div");
+      div.className = "bg-zinc-800/60 rounded-xl p-3 border border-white/5";
+      div.innerHTML = `
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-bold text-indigo-400">${msg.senderName}</span>
+          <span class="text-[10px] text-zinc-500">${msg.time}</span>
+        </div>
+        <p class="text-xs text-zinc-200 break-words">${msg.text}</p>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function copyMeetingLink() {
+      const url = `${window.location.origin}/#meet/${currentCode}`;
+      navigator.clipboard.writeText(url).then(() => {
+        document.getElementById("copy-btn-text").textContent = "✅ Copiado!";
+        setTimeout(() => { document.getElementById("copy-btn-text").textContent = "🔗 Copiar Enlace"; }, 2000);
+      }).catch(() => {
+        alert(`Enlace: ${url}`);
+      });
+    }
+
+    function leaveMeeting() {
+      if (socket) socket.emit("meeting:leave", { code: currentCode });
+      peerConnections.forEach((pc) => pc.close());
+      peerConnections.clear();
+      if (localStream) localStream.getTracks().forEach((t) => t.stop());
+      window.location.hash = "";
+      showScreen("screen-home");
+    }
+  </script>
+</body>
 </html>
