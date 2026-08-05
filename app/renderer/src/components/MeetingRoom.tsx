@@ -349,12 +349,43 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
   };
 
   const copyMeetingLink = () => {
-    const link = `${window.location.origin}/#meet/${meetingCode}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    const origin = window.location.origin.includes("file:")
+      ? "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io"
+      : window.location.origin;
+    const link = `${origin}/#meet/${meetingCode}`;
+
+    const copyText = (text: string): Promise<void> => {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand("copy");
+          textArea.remove();
+          return Promise.resolve();
+        } catch (e) {
+          textArea.remove();
+          return Promise.reject(e);
+        }
+      }
+    };
+
+    copyText(link)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {
+        alert(`Enlace de la reunión: ${link}`);
+      });
   };
+
 
   /* ------------------------------ Render Sala de Espera / Ingreso ------------------------------ */
 

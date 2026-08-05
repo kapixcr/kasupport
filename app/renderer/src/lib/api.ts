@@ -312,11 +312,14 @@ export const api = {
     req<{ ok: boolean }>(`/api/stickers/${name}`, { method: "DELETE" }),
 
   // Reuniones tipo Google Meet
-  createMeeting: (title?: string) =>
-    req<Meeting>("/api/meetings", {
+  createMeeting: async (title?: string) => {
+    const res = await req<any>("/api/meetings", {
       method: "POST",
       body: JSON.stringify({ title }),
-    }),
+    });
+    return (res?.meeting || res) as Meeting;
+  },
+
   getMeeting: (publicId: string) => req<Meeting>(`/api/meetings/${publicId}`),
   joinMeeting: (publicId: string, displayName?: string) =>
     req<{ join_token?: string; participant?: unknown }>(`/api/meetings/${publicId}/join`, {

@@ -1187,11 +1187,130 @@ io.on('connection', (socket) => {
     if (channelId) socket.leave(`channel:${channelId}`);
   });
 
+  /* ------------------ Reuniones WebRTC y Chat en Tiempo Real ------------------ */
+  const activeMeetings = new Map();
+
+  function broadcastMeetingState(code) {
+    const room = activeMeetings.get(code);
+    if (!room) return;
+    const participants = Array.from(room.values()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      avatar: p.avatar,
+      isGuest: p.isGuest,
+      handRaised: !!p.handRaised,
+    }));
+    io.to(`meeting:${code}`).emit('meeting:state', { code, participants });
+  }
+
+  socket.on('meeting:join', (data) => {
+    const code = String(data?.code || '').trim();
+    if (!code) return;
+    const name = String(data?.name || 'Invitado').trim().slice(0, 60);
+    const avatar = data?.avatar || null;
+    const isGuest = !!data?.isGuest;
+
+    let room = activeMeetings.get(code);
+    if (!room) {
+      room = new Map();
+      activeMeetings.set(code, room);
+    }
+
+    const participantId = socket.data.agent?.id || socket.id;
+    const participant = { id: participantId, name, avatar, isGuest, handRaised: false, socketId: socket.id };
+    room.set(socket.id, participant);
+    socket.data.meetingCode = code;
+    socket.join(`meeting:${code}`);
+
+    broadcastMeetingState(code);
+  });
+
+  socket.on('meeting:leave', (data) => {
+    const code = String(data?.code || socket.data.meetingCode || '').trim();
+    if (!code) return;
+    const room = activeMeetings.get(code);
+    if (room) {
+      room.delete(socket.id);
+      if (room.size === 0) activeMeetings.delete(code);
+      else broadcastMeetingState(code);
+    }
+    socket.leave(`meeting:${code}`);
+    socket.data.meetingCode = null;
+  });
+
+  socket.on('meeting:signal', (data) => {
+    const code = String(data?.code || '').trim();
+    const to = data?.to;
+    if (!code || !to) return;
+    const room = activeMeetings.get(code);
+    if (!room) return;
+
+    let targetSocketId = null;
+    for (const [sId, p] of room.entries()) {
+      if (String(p.id) === String(to) || sId === String(to)) {
+        targetSocketId = sId;
+        break;
+      }
+    }
+
+    const fromId = socket.data.agent?.id || socket.id;
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('meeting:signal', {
+        code,
+        from: fromId,
+        to,
+        data: data.data,
+      });
+    }
+  });
+
+  socket.on('meeting:chat_message', (data) => {
+    const code = String(data?.code || '').trim();
+    const text = String(data?.text || '').trim().slice(0, 1000);
+    if (!code || !text) return;
+
+    const senderName = String(data?.name || socket.data.agent?.name || 'Invitado').slice(0, 60);
+    const senderId = socket.data.agent?.id || socket.id;
+    const msg = {
+      id: crypto.randomUUID(),
+      senderId,
+      senderName,
+      text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    io.to(`meeting:${code}`).emit('meeting:chat_message', msg);
+  });
+
+  socket.on('meeting:hand_raise', (data) => {
+    const code = String(data?.code || '').trim();
+    const raised = !!data?.raised;
+    if (!code) return;
+    const room = activeMeetings.get(code);
+    if (room && room.has(socket.id)) {
+      room.get(socket.id).handRaised = raised;
+      broadcastMeetingState(code);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.data.meetingCode) {
+      const code = socket.data.meetingCode;
+      const room = activeMeetings.get(code);
+      if (room) {
+        room.delete(socket.id);
+        if (room.size === 0) activeMeetings.delete(code);
+        else broadcastMeetingState(code);
+      }
+    }
+  });
+
   // La escritura persistente se realiza por REST, donde se validan membresía y autor.
   socket.on('message:send', (_data, ack) => {
     ack?.({ error: 'usa los endpoints REST autenticados para enviar mensajes' });
   });
 });
+
 
 /* ----------------------------------- errores ----------------------------------- */
 

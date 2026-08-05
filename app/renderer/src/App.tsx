@@ -63,12 +63,19 @@ export default function App() {
 
   const handleCreateMeeting = async () => {
     try {
-      const m = await api.createMeeting("Reunión Kasupport");
-      setActiveMeetingCode(m.public_id);
+      const res: any = await api.createMeeting("Reunión Kasupport");
+      const code = res?.public_id || res?.code || res?.meeting?.public_id || res?.meeting?.code;
+      if (code) {
+        setActiveMeetingCode(code);
+      } else {
+        alert("No se pudo obtener el código de la reunión.");
+      }
     } catch (e) {
       console.error("Error al crear reunión:", e);
+      alert("Error al conectar con el servidor para crear la reunión.");
     }
   };
+
 
   const [agents, setAgents] = useState<Agent[]>([]);
   const [dms, setDms] = useState<Dm[]>([]);
