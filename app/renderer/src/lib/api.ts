@@ -193,9 +193,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`${API}${path}`, { headers, ...init });
-  } catch {
-    throw new Error(`No se pudo conectar con el servidor backend (${API})`);
+  } catch (err: any) {
+    const detail = err?.message || String(err || "");
+    throw new Error(`No se pudo conectar con el servidor backend (${API})${detail ? `: ${detail}` : ""}`);
   }
+
 
   if (r.status === 401) {
     setToken(null);

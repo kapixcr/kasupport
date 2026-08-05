@@ -96,7 +96,25 @@ function createWindow() {
     return isTrustedRendererUrl(requestingUrl) && mediaPermissions.has(permission);
   });
 
+  // Forzar headers de origen para peticiones desde Electron (file://)
+  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+    const headers = { ...details.requestHeaders };
+    if (!headers.Origin || headers.Origin === 'file://' || headers.Origin === 'null') {
+      headers.Origin = 'http://localhost:7100';
+    }
+    callback({ cancel: false, requestHeaders: headers });
+  });
+
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const headers = { ...details.responseHeaders };
+    delete headers['access-control-allow-origin'];
+    delete headers['Access-Control-Allow-Origin'];
+    headers['Access-Control-Allow-Origin'] = ['*'];
+    callback({ cancel: false, responseHeaders: headers });
+  });
+
   // Impedir que contenido web reemplace la aplicación y abrir únicamente HTTPS fuera.
+
   win.webContents.on('will-navigate', (event, url) => {
     if (isTrustedRendererUrl(url)) return;
     event.preventDefault();
