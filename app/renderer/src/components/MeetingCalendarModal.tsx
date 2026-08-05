@@ -93,7 +93,23 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
     }
   }, [activeTab, selectedAgentId, selectedDate]);
 
+  const handleCancelMeeting = async (publicId: string) => {
+    if (!confirm("¿Seguro que deseas cancelar y eliminar esta reunión?")) return;
+    try {
+      const res = await fetch(`${API}/api/meetings/${publicId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("kasupport_token")}` },
+      });
+      if (res.ok) {
+        void loadCalendar();
+      }
+    } catch (e) {
+      console.error("Error al cancelar reunión:", e);
+    }
+  };
+
   /* ------------------------------ Programar ------------------------------ */
+
 
   const handleScheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,17 +353,28 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
                       )}
                     </div>
 
-                    <button
-                      onClick={() => onJoinMeeting(m.public_id)}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all shrink-0 w-full sm:w-auto"
-                    >
-                      🚀 Unirse a la Sala
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                      <button
+                        onClick={() => onJoinMeeting(m.public_id)}
+                        className="flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all"
+                      >
+                        🚀 Unirse a la Sala
+                      </button>
+                      <button
+                        onClick={() => void handleCancelMeeting(m.public_id)}
+                        title="Cancelar y eliminar reunión"
+                        className="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 font-bold text-xs px-3 py-2.5 rounded-xl transition-all"
+                      >
+                        🗑️ Cancelar
+                      </button>
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+
 
           {/* Tab 2: Disponibilidad del Personal */}
           {activeTab === "availability" && (

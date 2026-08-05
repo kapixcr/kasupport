@@ -258,7 +258,27 @@ function createMeetingRouter({ db, requireAuth, verifyAgentToken, io, config }) 
     res.json({ meetings: rows });
   }));
 
+  router.delete('/meetings/:publicId', requireAuth, asyncRoute(async (req, res) => {
+    const meeting = await requireMeeting(db, req.params.publicId);
+    await db.query("UPDATE meetings SET status = 'ended', ended_at = now(), updated_at = now() WHERE id = $1", [meeting.id]);
+    try {
+      await db.query("DELETE FROM meetings WHERE id = $1", [meeting.id]);
+    } catch {
+      // Ignorar si hay referencias restrictivas
+    }
+    io.to(`meeting:${meeting.public_id}`).emit('meeting:ended', { public_id: meeting.public_id });
+    res.json({ ok: true, status: 'ended' });
+  }));
+
+  router.post('/meetings/:publicId/end', requireAuth, asyncRoute(async (req, res) => {
+    const meeting = await requireMeeting(db, req.params.publicId);
+    await db.query("UPDATE meetings SET status = 'ended', ended_at = now(), updated_at = now() WHERE id = $1", [meeting.id]);
+    io.to(`meeting:${meeting.public_id}`).emit('meeting:ended', { public_id: meeting.public_id });
+    res.json({ ok: true, status: 'ended' });
+  }));
+
   router.get('/meetings/availability', requireAuth, asyncRoute(async (req, res) => {
+
     const agentId = Number(req.query.agent_id);
     const dateStr = String(req.query.date || new Date().toISOString().split('T')[0]);
 

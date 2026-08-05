@@ -348,7 +348,21 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
     socket.emit("meeting:chat_message", { code: meetingCode, text, name: myDisplayName });
   };
 
+  const endMeeting = async () => {
+    if (!confirm("¿Seguro que deseas finalizar y cancelar esta reunión para todos los participantes?")) return;
+    try {
+      await fetch(`${API}/api/meetings/${meetingCode}/end`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("kasupport_token")}` },
+      });
+    } catch {
+      /* ignorar */
+    }
+    leaveMeeting();
+  };
+
   const copyMeetingLink = () => {
+
     const origin = window.location.origin.includes("file:")
       ? "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io"
       : window.location.origin;
@@ -717,17 +731,28 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
           <button
             onClick={leaveMeeting}
             title="Salir de la reunión"
-            className="bg-red-600 hover:bg-red-500 text-white rounded-2xl px-6 h-12 font-bold text-sm shadow-xl transition-all flex items-center gap-2 ml-2"
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 rounded-2xl px-4 h-11 sm:h-12 font-bold text-xs shadow-lg transition-all flex items-center gap-1.5"
           >
             <span>Salir</span>
-            <span>📵</span>
+            <span>🚪</span>
+          </button>
+
+          <button
+            onClick={endMeeting}
+            title="Finalizar y cancelar reunión para todos los participantes"
+            className="bg-red-600 hover:bg-red-500 text-white rounded-2xl px-4 h-11 sm:h-12 font-bold text-xs shadow-xl transition-all flex items-center gap-1.5"
+          >
+            <span>Finalizar</span>
+            <span>🛑</span>
           </button>
         </div>
 
-        <div className="text-xs text-zinc-500 font-mono hidden sm:block">
+        <div className="text-xs text-zinc-500 font-mono hidden md:block">
           Kasupport Meet
         </div>
       </footer>
     </div>
   );
 }
+
+
