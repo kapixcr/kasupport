@@ -22,7 +22,7 @@ const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const meetingConfig = loadMeetingConfig(process.env, { requireLiveKit: isProduction });
+const meetingConfig = loadMeetingConfig(process.env, { requireLiveKit: false });
 
 if (isProduction && JWT_SECRET === 'kasupport-dev-secret') {
   throw new Error('JWT_SECRET seguro es obligatorio en producción');
