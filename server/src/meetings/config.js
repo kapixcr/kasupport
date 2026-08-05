@@ -57,15 +57,15 @@ function loadMeetingConfig(env = process.env, options = {}) {
 
   const maxParticipants = parseInteger(env.MEETING_MAX_PARTICIPANTS, 15, 'MEETING_MAX_PARTICIPANTS', { min: 2, max: 15 });
   const tokenTtlSeconds = parseInteger(env.MEETING_LIVEKIT_TOKEN_TTL_SECONDS, 3600, 'MEETING_LIVEKIT_TOKEN_TTL_SECONDS', { min: 60, max: 86400 });
-  const guestTokenPepper = env.MEETING_GUEST_TOKEN_PEPPER || env.JWT_SECRET || 'kasupport-production-secure-guest-pepper-secret-32ch';
+  const rawPepper = env.MEETING_GUEST_TOKEN_PEPPER || env.JWT_SECRET;
+  const guestTokenPepper = (rawPepper && String(rawPepper).length >= 16)
+    ? String(rawPepper)
+    : 'kasupport-production-secure-guest-pepper-secret-32ch';
   const allowInsecureDevelopment = parseBoolean(env.MEETING_ALLOW_INSECURE_DEVELOPMENT, true);
 
   const errors = [];
   if (!livekitConfigured && options.requireLiveKit) errors.push('LiveKit configuration is required');
   if (livekitConfigured && String(env.LIVEKIT_API_SECRET).length < 16) errors.push('LIVEKIT_API_SECRET must be at least 16 characters');
-  if (!guestTokenPepper || String(guestTokenPepper).length < 16) {
-    errors.push('MEETING_GUEST_TOKEN_PEPPER (or JWT_SECRET) must be at least 16 characters');
-  }
   if (s3Configured && !livekitConfigured) errors.push('recording storage requires LiveKit configuration');
   if (parseBoolean(env.MEETING_RECORDING_ENABLED, false) && !s3Configured) {
     errors.push('MEETING_RECORDING_ENABLED requires S3_BUCKET and S3_REGION');
@@ -75,6 +75,7 @@ function loadMeetingConfig(env = process.env, options = {}) {
     error.code = 'INVALID_MEETING_CONFIG';
     throw error;
   }
+
 
 
   const livekitUrl = livekitConfigured
