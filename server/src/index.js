@@ -48,8 +48,9 @@ app.use(express.json({
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/healthcheck', (_req, res) => {
-  res.json({ status: 'ok', version: '2026-08-04-v6-standalone-web-meet', time: new Date().toISOString() });
+  res.json({ status: 'ok', version: '2026-08-04-v7-syntax-fix', time: new Date().toISOString() });
 });
+
 
 
 
@@ -1311,7 +1312,10 @@ io.on('connection', (socket) => {
   socket.on('message:send', (_data, ack) => {
     ack?.({ error: 'usa los endpoints REST autenticados para enviar mensajes' });
   });
+});
+
 /* -------------------------- SPA Fallback para Web -------------------------- */
+
 
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/stickers')) {
