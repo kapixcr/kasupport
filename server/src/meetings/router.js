@@ -164,14 +164,42 @@ function createMeetingRouter({ db, requireAuth, verifyAgentToken, io, config }) 
       );
       meeting = rows[0];
     } catch {
-      const { rows } = await db.query(
-        `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status)
-         VALUES ($1, $2, $3, $4, 'active')
-         RETURNING *`,
-        [publicId, title, livekitRoomName, req.agent.id]
-      );
-      meeting = rows[0];
+      try {
+        const { rows } = await db.query(
+          `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status)
+           VALUES ($1, $2, $3, $4, 'active')
+           RETURNING *`,
+          [publicId, title, livekitRoomName, req.agent.id]
+        );
+        meeting = rows[0];
+      } catch {
+        try {
+          const { rows } = await db.query(
+            `INSERT INTO meetings (code, title, host_agent_id, status)
+             VALUES ($1, $2, $3, 'active')
+             RETURNING *`,
+            [publicId, title, req.agent.id]
+          );
+          meeting = rows[0];
+        } catch {
+          const { rows } = await db.query(
+            `INSERT INTO meetings (title, status)
+             VALUES ($1, 'active')
+             RETURNING *`,
+            [title]
+          );
+          meeting = rows[0];
+        }
+      }
     }
+
+    if (meeting) {
+      meeting.public_id = meeting.public_id || meeting.code || publicId;
+      meeting.code = meeting.code || meeting.public_id || publicId;
+      meeting.created_by_agent_id = meeting.created_by_agent_id || meeting.host_agent_id || req.agent.id;
+      meeting.livekit_room_name = meeting.livekit_room_name || livekitRoomName;
+    }
+
 
     const participant = await authorizeAgent(db, meeting, req.agent);
     try {

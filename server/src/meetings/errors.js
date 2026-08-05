@@ -15,14 +15,16 @@ function sendError(res, error, logger = console) {
   if (status >= 500) logger?.error?.(error);
 
   const payload = {
-    error: status >= 500 && !error?.expose ? 'error interno' : (error.message || 'error interno'),
+    error: error.message || 'error interno',
+    detail: error.message || 'error interno',
     code: error?.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
   };
-  if (error?.details !== undefined && (status < 500 || error.expose)) {
+  if (error?.details !== undefined) {
     payload.details = error.details;
   }
   return res.status(status).json(payload);
 }
+
 
 function asyncRoute(handler, logger = console) {
   return async function meetingRoute(req, res, next) {
