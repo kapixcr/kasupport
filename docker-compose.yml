@@ -5,9 +5,9 @@ services:
     image: postgres:16-alpine
     container_name: kasupport-db
     environment:
-      POSTGRES_USER: kasupport
-      POSTGRES_PASSWORD: kasupport_secure_password
-      POSTGRES_DB: kasupport
+      POSTGRES_USER: ${POSTGRES_USER:-kasupport}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en el entorno}
+      POSTGRES_DB: ${POSTGRES_DB:-kasupport}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./server/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -25,14 +25,34 @@ services:
     container_name: kasupport-backend
     environment:
       PORT: 4100
-      DATABASE_URL: postgres://kasupport:kasupport_secure_password@postgres:5432/kasupport
-      JWT_SECRET: cambia_este_secret_por_uno_seguro
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-kasupport}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kasupport}
+      JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en el entorno}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?define ALLOWED_ORIGINS en el entorno}
+      PUBLIC_MEET_URL: ${PUBLIC_MEET_URL:?define PUBLIC_MEET_URL en el entorno}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      MEETING_RECORDING_ENABLED: ${MEETING_RECORDING_ENABLED:-false}
+      MEETING_RECORDING_PREFIX: ${MEETING_RECORDING_PREFIX:-recordings}
+      MEETING_MAX_PARTICIPANTS: ${MEETING_MAX_PARTICIPANTS:-15}
+      MEETING_GUEST_TOKEN_TTL_MINUTES: ${MEETING_GUEST_TOKEN_TTL_MINUTES:-240}
     ports:
       - "4100:4100"
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/public/uploads
     restart: always
 
 volumes:
   postgres_data:
+  uploads_data:

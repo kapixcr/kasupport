@@ -105,6 +105,18 @@ CREATE TABLE IF NOT EXISTS reactions (
 CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_dept ON conversations(department_id, status);
 
+CREATE TABLE IF NOT EXISTS meetings (
+  id            SERIAL PRIMARY KEY,
+  code          TEXT NOT NULL UNIQUE,
+  title         TEXT NOT NULL,
+  host_agent_id INT REFERENCES agents(id) ON DELETE SET NULL,
+  status        TEXT NOT NULL DEFAULT 'active',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_meetings_code ON meetings(code);
+
+
 -- Seed: departamentos
 INSERT INTO departments (name, slug) VALUES
   ('Ventas', 'ventas'),
@@ -112,21 +124,25 @@ INSERT INTO departments (name, slug) VALUES
   ('Facturación', 'facturacion')
 ON CONFLICT (slug) DO NOTHING;
 
--- Seed: canales internos
-INSERT INTO channels (name, type) VALUES
+-- Seed: canales internos (idempotente incluso en instalaciones antiguas sin índice único)
+INSERT INTO channels (name, type)
+SELECT seed.name, seed.type
+FROM (VALUES
   ('general', 'channel'),
   ('anuncios', 'channel'),
   ('random', 'channel')
-ON CONFLICT DO NOTHING;
+) AS seed(name, type)
+WHERE NOT EXISTS (
+  SELECT 1 FROM channels c WHERE c.name = seed.name AND c.type = seed.type
+);
 
 -- Seed: agente demo
 INSERT INTO agents (name, email, color) VALUES
   ('Agente Demo', 'demo@kasupport.local', '#4f46e5')
 ON CONFLICT (email) DO NOTHING;
 
--- Reset / Asegurar cuenta de Kenneth como admin
+-- Cuenta administrativa inicial. En instalaciones nuevas se recomienda crearla
+-- mediante un proceso seguro y cambiar la contraseña inmediatamente.
 INSERT INTO agents (name, email, password_hash, role, color)
 VALUES ('Kenneth', 'kenneth@kapix.co.cr', '$2b$10$qb8Q4gRsl1HMHYXhrMPl7.ASUq02/c054aRCwNasGsDQFjceY4Ug2', 'admin', '#4f46e5')
-ON CONFLICT (email) DO UPDATE
-SET password_hash = '$2b$10$qb8Q4gRsl1HMHYXhrMPl7.ASUq02/c054aRCwNasGsDQFjceY4Ug2',
-    role = 'admin';
+ON CONFLICT (email) DO NOTHING;

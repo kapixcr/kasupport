@@ -14,34 +14,59 @@ const RTC_CONFIG: RTCConfiguration = {
 
 interface Props {
   me: Agent;
-  channelId: number | null;         // canal del huddle al que me uní (null = fuera)
-  participants: HuddleParticipant[]; // participantes actuales de ESE canal
+  channelId: number | null;
+  participants: HuddleParticipant[];
   onLeave: () => void;
 }
 
-/* Video remoto/local con srcObject */
-function HuddleVideo({ stream, label, muted = false, mirror = false }: {
+/* Video remoto/local con srcObject y soporte para Enfocar / Pantalla Completa */
+function HuddleVideo({
+  stream,
+  label,
+  muted = false,
+  mirror = false,
+  objectFit = "cover",
+  onClick,
+  isPinned = false,
+}: {
   stream: MediaStream | null;
   label: string;
   muted?: boolean;
   mirror?: boolean;
+  objectFit?: "cover" | "contain";
+  onClick?: () => void;
+  isPinned?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (ref.current && stream) ref.current.srcObject = stream;
   }, [stream]);
+
   return (
-    <div className="relative bg-zinc-800 rounded-xl overflow-hidden aspect-video">
+    <div
+      onClick={onClick}
+      className={`relative bg-black rounded-xl overflow-hidden group cursor-pointer border transition-all h-full w-full flex items-center justify-center ${
+        isPinned ? "border-indigo-500 ring-2 ring-indigo-500/50" : "border-white/10 hover:border-indigo-400/50"
+      }`}
+    >
       <video
         ref={ref}
         autoPlay
         playsInline
         muted={muted}
-        className={`w-full h-full object-cover ${mirror ? "-scale-x-100" : ""}`}
+        className={`w-full h-full ${objectFit === "contain" ? "object-contain" : "object-cover"} ${
+          mirror ? "-scale-x-100" : ""
+        }`}
       />
-      <span className="absolute bottom-1.5 left-2 text-[11px] text-white bg-black/50 rounded px-1.5 py-0.5">
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      <span className="absolute bottom-2 left-2 text-xs font-semibold text-white bg-black/70 backdrop-blur rounded-lg px-2 py-0.5 border border-white/10 flex items-center gap-1.5 z-10">
         {label}
       </span>
+      {onClick && (
+        <span className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-indigo-600 text-white rounded-lg px-2 py-1 font-medium shadow z-10">
+          {isPinned ? "🔍 Vista normal" : "🔍 Maximizar video"}
+        </span>
+      )}
     </div>
   );
 }
@@ -53,6 +78,16 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
 
+  // Ventana y posición (Arrastrar, Maximizar, Pantalla Completa)
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [sizeMode, setSizeMode] = useState<"floating" | "large">("floating");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pinnedId, setPinnedId] = useState<number | "local" | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
+
   const pcsRef = useRef(new Map<number, RTCPeerConnection>());
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -61,6 +96,55 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
   const prevParticipants = useRef<Set<number>>(new Set());
 
   const active = channelId !== null;
+
+  /* ------------------------------ arrastrar ventana ------------------------------ */
+
+  const startDrag = (e: React.MouseEvent) => {
+    if (sizeMode === "large" || isFullscreen) return;
+    const currentX = pos?.x ?? Math.max(20, (window.innerWidth - 720) / 2);
+    const currentY = pos?.y ?? Math.max(20, window.innerHeight - 380);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: currentX,
+      posY: currentY,
+    };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      const nextX = Math.max(10, Math.min(window.innerWidth - 300, dragStartRef.current.posX + dx));
+      const nextY = Math.max(10, Math.min(window.innerHeight - 100, dragStartRef.current.posY + dy));
+      setPos({ x: nextX, y: nextY });
+    };
+
+    const onMouseUp = () => {
+      dragStartRef.current = null;
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [isDragging]);
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
 
   /* ------------------------------ ciclo de vida ------------------------------ */
 
@@ -78,6 +162,9 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
     setMicOn(true);
     setCamOn(true);
     setSharing(false);
+    setPinnedId(null);
+    setPos(null);
+    setSizeMode("floating");
   }, []);
 
   const leave = useCallback(() => {
@@ -140,7 +227,6 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
     });
   }, [channelId, me.id, createPC]);
 
-  // Unirme al huddle cuando App pone channelId
   useEffect(() => {
     if (!channelId) return;
     let cancelled = false;
@@ -168,7 +254,6 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
   useEffect(() => {
     if (!channelId) return;
 
-    // Yo entré: el server me manda los que ya estaban → les hago offer
     const onJoined = (d: { channel_id: number; participants: HuddleParticipant[] }) => {
       if (d.channel_id !== channelId) return;
       d.participants.forEach((p) => { void makeOffer(p.id); });
@@ -220,15 +305,12 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
     };
   }, [channelId, me.id, createPC, makeOffer]);
 
-  // Reaccionar a altas/bajas de participantes mientras estoy dentro
   useEffect(() => {
     if (!channelId) return;
     const current = new Set(participants.map((p) => p.id).filter((id) => id !== me.id));
-    // Nuevos mientras yo ya estoy: NO hago offer (ellos la hacen al entrar); solo suena
     for (const id of current) {
       if (!prevParticipants.current.has(id)) playDing();
     }
-    // Bajas: cerrar su conexión y quitar su video
     for (const id of prevParticipants.current) {
       if (!current.has(id)) {
         pcsRef.current.get(id)?.close();
@@ -238,10 +320,11 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
           delete next[id];
           return next;
         });
+        if (pinnedId === id) setPinnedId(null);
       }
     }
     prevParticipants.current = current;
-  }, [participants, channelId, me.id]);
+  }, [participants, channelId, me.id, pinnedId]);
 
   /* --------------------------------- acciones --------------------------------- */
 
@@ -265,7 +348,8 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     screenStreamRef.current = null;
     setSharing(false);
-  }, []);
+    if (pinnedId === "local") setPinnedId(null);
+  }, [pinnedId]);
 
   const shareScreen = async () => {
     if (sharing) { await stopShare(); return; }
@@ -280,6 +364,7 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
       screenStreamRef.current = display;
       track.onended = () => { void stopShare(); };
       setSharing(true);
+      setPinnedId("local"); // Auto enfocarme al compartir pantalla
     } catch (e) {
       console.error("compartir pantalla cancelado/falló", e);
     }
@@ -291,63 +376,193 @@ export function HuddleManager({ me, channelId, participants, onLeave }: Props) {
 
   const others = participants.filter((p) => p.id !== me.id);
 
+  // Stream local o pantalla
+  const myStream = sharing && screenStreamRef.current ? screenStreamRef.current : localStreamRef.current;
+
+  // Stream actualmente enfocado (pinned)
+  const activeFocusId = pinnedId ?? (sharing ? "local" : null);
+
+  const getStreamForId = (id: number | "local") => {
+    if (id === "local") return myStream;
+    return remoteStreams[id] ?? null;
+  };
+
+  const getLabelForId = (id: number | "local") => {
+    if (id === "local") return sharing ? `${me.name} (Pantalla)` : `${me.name} (tú)`;
+    const p = others.find((item) => item.id === id);
+    return p ? p.name : "Participante";
+  };
+
+  // Determinar estilos de contenedor flotante vs ventana grande vs fullscreen
+  const getContainerStyle = (): { className: string; style?: React.CSSProperties } => {
+    if (isFullscreen) {
+      return { className: "fixed inset-0 z-[100] w-screen h-screen bg-zinc-950 p-4 flex flex-col" };
+    }
+    if (sizeMode === "large") {
+      return { className: "fixed inset-4 sm:inset-10 z-50 bg-zinc-900/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden" };
+    }
+    if (pos) {
+      return {
+        className: "fixed z-50 w-[720px] max-w-[95vw]",
+        style: { left: `${pos.x}px`, top: `${pos.y}px` },
+      };
+    }
+    return { className: "fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[720px] max-w-[95vw]" };
+  };
+
+  const containerProps = getContainerStyle();
+
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[720px] max-w-[95vw]">
-      <div className="bg-zinc-900/95 backdrop-blur text-white rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
-        <div className="px-4 py-2.5 flex items-center gap-2 border-b border-white/10">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <p className="text-sm font-semibold flex-1">
+    <div ref={containerRef} className={containerProps.className} style={containerProps.style}>
+      <div className="bg-zinc-900/95 backdrop-blur text-white rounded-2xl shadow-2xl border border-white/10 overflow-hidden flex flex-col h-full w-full">
+        {/* Header con soporte para arrastrar, maximizar y pantalla completa */}
+        <div
+          onMouseDown={startDrag}
+          className="px-4 py-2.5 flex items-center gap-2 border-b border-white/10 select-none cursor-grab active:cursor-grabbing bg-zinc-800/60"
+        >
+          <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+          <p className="text-sm font-semibold flex-1 truncate">
             Huddle · {others.length + 1} participante{others.length === 0 ? "" : "s"}
             {sharing && <span className="ml-2 text-indigo-300">🖥️ compartiendo pantalla</span>}
+            <span className="ml-2 text-xs font-normal text-zinc-400"> (Arrastra para mover)</span>
           </p>
           {error && <p className="text-xs text-red-400">{error}</p>}
+
+          <div className="flex items-center gap-1.5">
+            {/* Alternar tamaño ventana */}
+            <button
+              onClick={() => setSizeMode(sizeMode === "floating" ? "large" : "floating")}
+              className="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-colors"
+              title={sizeMode === "floating" ? "Maximizar ventana de Huddle" : "Reducir ventana a flotante"}
+            >
+              {sizeMode === "floating" ? "🗖 Agrandar" : "🗗 Reducir"}
+            </button>
+
+            {/* Alternar pantalla completa */}
+            <button
+              onClick={toggleFullscreen}
+              className="px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors font-medium"
+              title="Pantalla completa"
+            >
+              {isFullscreen ? "↙ Salir pantalla completa" : "⛶ Pantalla completa"}
+            </button>
+          </div>
         </div>
 
-        <div className={`grid gap-2 p-3 ${others.length === 0 ? "grid-cols-1" : others.length === 1 ? "grid-cols-2" : "grid-cols-3"}`}>
-          <HuddleVideo
-            stream={sharing && screenStreamRef.current ? screenStreamRef.current : localStreamRef.current}
-            label={`${me.name} (tú)`}
-            muted
-            mirror={!sharing}
-          />
-          {others.map((p) => (
-            <HuddleVideo key={p.id} stream={remoteStreams[p.id] ?? null} label={p.name} />
-          ))}
-          {others.length === 0 && (
-            <p className="text-xs text-zinc-500 text-center py-1">
-              Esperando a que alguien se una al huddle…
-            </p>
+        {/* Cuerpo del Video (Modo Enfocado vs Modo Mosaico Grid) */}
+        <div className="flex-1 p-3 flex flex-col gap-2 min-h-0 overflow-hidden">
+          {activeFocusId ? (
+            /* Vista Encamada / Enfocada (ideal al compartir pantalla o enfocar participante) */
+            <div className="flex-1 flex flex-col gap-2 min-h-0">
+              <div className="flex-1 min-h-0">
+                <HuddleVideo
+                  stream={getStreamForId(activeFocusId)}
+                  label={getLabelForId(activeFocusId)}
+                  muted={activeFocusId === "local"}
+                  mirror={activeFocusId === "local" && !sharing}
+                  objectFit={sharing && activeFocusId === "local" ? "contain" : "contain"}
+                  isPinned
+                  onClick={() => setPinnedId(null)}
+                />
+              </div>
+
+              {/* Tira inferior de miniaturas de participantes */}
+              <div className="h-24 flex gap-2 overflow-x-auto shrink-0 pb-1">
+                {activeFocusId !== "local" && (
+                  <div className="w-36 h-full shrink-0">
+                    <HuddleVideo
+                      stream={myStream}
+                      label={`${me.name} (tú)`}
+                      muted
+                      mirror={!sharing}
+                      onClick={() => setPinnedId("local")}
+                    />
+                  </div>
+                )}
+                {others.map((p) => {
+                  if (activeFocusId === p.id) return null;
+                  return (
+                    <div key={p.id} className="w-36 h-full shrink-0">
+                      <HuddleVideo
+                        stream={remoteStreams[p.id] ?? null}
+                        label={p.name}
+                        onClick={() => setPinnedId(p.id)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Vista Mosaico / Grid estándar */
+            <div
+              className={`grid gap-2 flex-1 min-h-0 ${
+                others.length === 0
+                  ? "grid-cols-1"
+                  : others.length === 1
+                  ? "grid-cols-2"
+                  : "grid-cols-2 sm:grid-cols-3"
+              }`}
+            >
+              <HuddleVideo
+                stream={myStream}
+                label={`${me.name} (tú)`}
+                muted
+                mirror={!sharing}
+                objectFit={sharing ? "contain" : "cover"}
+                onClick={() => setPinnedId("local")}
+              />
+              {others.map((p) => (
+                <HuddleVideo
+                  key={p.id}
+                  stream={remoteStreams[p.id] ?? null}
+                  label={p.name}
+                  onClick={() => setPinnedId(p.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="px-4 pb-3.5 flex items-center justify-center gap-3">
+        {/* Barra de Controles Inferior */}
+        <div className="px-4 pb-3.5 pt-1 flex items-center justify-center gap-3 bg-zinc-900/90 shrink-0">
           <button
             onClick={toggleMic}
             title={micOn ? "Silenciar micrófono" : "Activar micrófono"}
-            className={`w-10 h-10 rounded-full ${micOn ? "bg-zinc-700 hover:bg-zinc-600" : "bg-red-600"}`}
+            className={`w-10 h-10 rounded-full text-base transition-colors ${
+              micOn ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-600 text-white"
+            }`}
           >
             {micOn ? "🎙️" : "🔇"}
           </button>
+
           <button
             onClick={toggleCam}
             title={camOn ? "Apagar cámara" : "Encender cámara"}
-            className={`w-10 h-10 rounded-full ${camOn || sharing ? "bg-zinc-700 hover:bg-zinc-600" : "bg-red-600"}`}
+            className={`w-10 h-10 rounded-full text-base transition-colors ${
+              camOn || sharing ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "bg-red-600 text-white"
+            }`}
           >
             {camOn || sharing ? "📷" : "🚫"}
           </button>
+
           <button
             onClick={shareScreen}
-            title={sharing ? "Dejar de compartir" : "Compartir pantalla"}
-            className={`w-10 h-10 rounded-full ${sharing ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"}`}
+            title={sharing ? "Dejar de compartir pantalla" : "Compartir pantalla"}
+            className={`w-10 h-10 rounded-full text-base transition-colors ${
+              sharing ? "bg-indigo-600 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-white"
+            }`}
           >
             🖥️
           </button>
+
           <button
             onClick={leave}
             title="Salir del huddle"
-            className="bg-red-600 hover:bg-red-500 rounded-full px-4 h-10 text-sm font-semibold"
+            className="bg-red-600 hover:bg-red-500 text-white rounded-full px-4 h-10 text-sm font-semibold transition-colors flex items-center gap-1.5"
           >
-            Salir 📵
+            <span>Salir</span>
+            <span>📵</span>
           </button>
         </div>
       </div>

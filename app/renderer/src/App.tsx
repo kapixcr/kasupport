@@ -18,7 +18,7 @@ import {
   type Theme,
 } from "@/lib/api";
 import type { Selection } from "@/lib/selection";
-import { desktopNotify, ensureNotificationPermission, playDing } from "@/lib/notify";
+import { desktopNotify, ensureNotificationPermission, playDing, playRing } from "@/lib/notify";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { AuthScreen } from "@/components/AuthScreen";
@@ -26,6 +26,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { ThreadPanel } from "@/components/ThreadPanel";
 import { CallManager, type CallPeer } from "@/components/CallManager";
 import { HuddleManager, type HuddleParticipant } from "@/components/HuddleManager";
+import { MeetingRoom } from "@/components/MeetingRoom";
 
 export default function App() {
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -40,13 +41,64 @@ export default function App() {
   const [callRequest, setCallRequest] = useState<CallPeer | null>(null);
   const [huddles, setHuddles] = useState<Record<number, HuddleParticipant[]>>({});
   const [huddleChannel, setHuddleChannel] = useState<number | null>(null);
+  const [activeMeetingCode, setActiveMeetingCode] = useState<string | null>(null);
   const [highlightMsgId, setHighlightMsgId] = useState<number | null>(null);
+
+  // Escuchar enlaces de reunión en URL (ej: #meet/meet-x89q2p)
+  useEffect(() => {
+    const checkHash = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith("#meet/")) {
+        const code = hash.replace("#meet/", "");
+        if (code) setActiveMeetingCode(code);
+      }
+    };
+    checkHash();
+    window.addEventListener("hashchange", checkHash);
+    return () => window.removeEventListener("hashchange", checkHash);
+  }, []);
+
+  const handleCreateMeeting = async () => {
+    try {
+      const m = await api.createMeeting("Reunión Kasupport");
+      setActiveMeetingCode(m.public_id);
+    } catch (e) {
+      console.error("Error al crear reunión:", e);
+    }
+  };
+
   const [agents, setAgents] = useState<Agent[]>([]);
   const [dms, setDms] = useState<Dm[]>([]);
   const [onlineIds, setOnlineIds] = useState<Set<number>>(new Set());
+  const [unreads, setUnreads] = useState<Record<number, number>>({});
   // channelId -> lista de nombres escribiendo (con expiración)
   const [typingByChannel, setTypingByChannel] = useState<Record<number, string[]>>({});
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Limpiar mensajes no leídos del canal activo al seleccionarlo
+  useEffect(() => {
+    if (!selection) return;
+    setUnreads((prev) => {
+      if (!prev[selection.channelId]) return prev;
+      const next = { ...prev };
+      delete next[selection.channelId];
+      return next;
+    });
+  }, [selection]);
+
+  // Contador total de no leídos para actualizar título y badge del Dock/Barra de tareas
+  const totalUnreads = useMemo(() => {
+    return Object.values(unreads).reduce((sum, count) => sum + count, 0);
+  }, [unreads]);
+
+  useEffect(() => {
+    document.title = totalUnreads > 0 ? `(${totalUnreads}) Kasupport` : "Kasupport";
+    const desktop = (window as unknown as { kasupportDesktop?: { setBadge: (n: number) => void } }).kasupportDesktop;
+    if (desktop?.setBadge) {
+      desktop.setBadge(totalUnreads);
+    }
+  }, [totalUnreads]);
+
 
   // Sesión existente
   useEffect(() => {
@@ -79,6 +131,11 @@ export default function App() {
     if (!agent) return;
     void ensureNotificationPermission();
     setPresenceAgent(agent.id); // registrar presencia online
+    return () => setPresenceAgent(null);
+  }, [agent?.id]);
+
+  useEffect(() => {
+    if (!agent) return;
     api.agents().then(setAgents).catch(() => {});
     api.channels().then((cs) => {
       setChannels(cs);
@@ -87,7 +144,7 @@ export default function App() {
     api.departments().then(setDepartments).catch(() => {});
     refreshConversations();
     refreshDms();
-  }, [agent, refreshConversations, refreshDms]);
+  }, [agent?.id, refreshConversations, refreshDms]);
 
   // Mensajes del canal seleccionado
   useEffect(() => {
@@ -99,7 +156,7 @@ export default function App() {
   // Tiempo real
   useEffect(() => {
     if (!agent) return;
-    socket.emit("agents:join");
+    if (socket.connected) socket.emit("agents:join");
 
     const notifOn = agent.notif_enabled !== false;
     const soundOn = agent.notif_sound !== false;
@@ -125,24 +182,26 @@ export default function App() {
       }
       refreshConversations();
 
-      // Aviso de mensajes de visitantes (si no estoy viendo ese chat o la ventana no tiene foco)
-      if (m.author_type === "visitor") {
+      // Notificación y conteo de no leídos para TODOS los mensajes recibidos que NO sean míos
+      const isMine = m.author_type === "agent" && m.author_id === agent.id;
+      if (!isMine) {
         const viewingIt = selection?.channelId === m.channel_id && !document.hidden;
         if (!viewingIt) {
+          setUnreads((prev) => ({
+            ...prev,
+            [m.channel_id]: (prev[m.channel_id] || 0) + 1,
+          }));
           ding();
           if (notifOn) {
             const body = m.kind === "image" ? "📷 Imagen" : m.kind === "file" ? "📄 Archivo" : m.body;
             desktopNotify(`💬 ${m.author_name}`, body, () => {
-              // Al hacer clic en la notificación, abrir esa conversación
-              api.conversations().then((convs) => {
-                const cv = convs.find((c) => c.channel_id === m.channel_id);
-                if (cv) setSelection({ kind: "conversation", id: cv.id, channelId: cv.channel_id });
-              }).catch(() => {});
+              setSelection({ kind: "channel", id: m.channel_id, channelId: m.channel_id });
             });
           }
         }
       }
     };
+
     const refresh = () => refreshAll();
     const onChannelNew = (c: Channel) =>
       setChannels((prev) => (prev.some((p) => p.id === c.id) ? prev : [...prev, c]));
@@ -216,7 +275,19 @@ export default function App() {
       }
     };
 
+    // Timbre y notificación de llamada entrante
+    const onCallInvite = (payload: { to: number; from: { id: number; name: string } }) => {
+      if (payload.to === agent.id) {
+        if (soundOn) playRing();
+        if (notifOn) {
+          desktopNotify("📞 Llamada Entrante", `${payload.from.name} te está llamando`);
+        }
+      }
+    };
+
+    socket.on("call:invite", onCallInvite);
     socket.on("message:new", onMessage);
+
     socket.on("dm:new", onDmNew);
     socket.on("huddle:state", onHuddleState);
     socket.on("reaction:update", onReaction);
@@ -234,6 +305,7 @@ export default function App() {
     socket.on("department:update", refresh);
     socket.on("department:delete", refresh);
     return () => {
+      socket.off("call:invite", onCallInvite);
       socket.off("message:new", onMessage);
       socket.off("dm:new", onDmNew);
       socket.off("huddle:state", onHuddleState);
@@ -444,7 +516,11 @@ export default function App() {
         onAvatarChange={handleAvatarChange}
         onAgentChange={setAgent}
         onSearchSelect={handleSearchSelect}
+        unreads={unreads}
+        onNewMeeting={handleCreateMeeting}
       />
+
+
       {selection && current ? (
         <ChatArea
           title={current.title}
@@ -498,7 +574,18 @@ export default function App() {
         participants={huddleChannel ? (huddles[huddleChannel] || []) : []}
         onLeave={() => setHuddleChannel(null)}
       />
+      {activeMeetingCode && (
+        <MeetingRoom
+          me={agent}
+          meetingCode={activeMeetingCode}
+          onLeave={() => {
+            setActiveMeetingCode(null);
+            window.location.hash = "";
+          }}
+        />
+      )}
       {settingsOpen && (
+
         <SettingsModal
           me={agent}
           theme={theme}

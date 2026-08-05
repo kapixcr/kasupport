@@ -10,6 +10,9 @@ export default defineConfig({
   server: {
     port: 7100,
   },
+  preview: {
+    port: 7100,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

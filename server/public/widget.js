@@ -168,11 +168,7 @@
       var now = Date.now();
       if (now - lastTypingSent < 2000) return;
       lastTypingSent = now;
-      socket.emit('typing', {
-        channelId: session.channelId,
-        name: session.visitor.name,
-        authorType: 'visitor',
-      });
+      socket.emit('typing', { channelId: session.channelId, token: session.token });
     };
 
     // Adjuntar imagen
@@ -260,8 +256,8 @@
     var s = document.createElement('script');
     s.src = SERVER + '/socket.io/socket.io.js';
     s.onload = function () {
-      socket = window.io(SERVER);
-      socket.emit('channel:join', session.channelId);
+      socket = window.io(SERVER, { auth: { widgetToken: session.token } });
+      socket.emit('channel:join', { channelId: session.channelId, token: session.token });
       socket.on('message:new', function (m) {
         if (m.channel_id === session.channelId) appendMessage(m);
       });

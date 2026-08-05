@@ -36,6 +36,8 @@ interface Props {
   onAvatarChange: (file: File) => void;
   onAgentChange: (a: Agent) => void;
   onSearchSelect: (r: SearchResult) => void;
+  unreads?: Record<number, number>;
+  onNewMeeting?: () => void;
 }
 
 export function Sidebar({
@@ -48,6 +50,8 @@ export function Sidebar({
   selection,
   agent,
   theme,
+  unreads = {},
+
   onSelect,
   onAddChannel,
   onStartDm,
@@ -56,6 +60,7 @@ export function Sidebar({
   onAvatarChange,
   onAgentChange,
   onSearchSelect,
+  onNewMeeting,
 }: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -113,8 +118,17 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="pt-3 border-b border-white/10">
+      <div className="pt-3 pb-2 border-b border-white/10 px-3 space-y-2">
         <SearchBar onSelect={onSearchSelect} />
+        {onNewMeeting && (
+          <button
+            onClick={onNewMeeting}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 flex items-center justify-center gap-2 transition-all shadow-md"
+          >
+            <span>📹</span>
+            <span>Nueva Reunión</span>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 space-y-5">
@@ -150,26 +164,35 @@ export function Sidebar({
             </form>
           )}
           <ul className="mt-1">
-            {channels.map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() => onSelect({ kind: "channel", id: c.id, channelId: c.id })}
-                  className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-1 ${
-                    isSelected("channel", c.id) ? "text-white" : ""
-                  }`}
-                  style={isSelected("channel", c.id) ? {
-                    background: theme.accent,
-                    boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
-                  } : undefined}
-                >
-                  <span className="text-zinc-500">
-                    {c.is_private ? "🔒" : c.post_policy === "admin" ? "📢" : "#"}
-                  </span>
-                  <span className="truncate">{c.name}</span>
-                </button>
-              </li>
-            ))}
+            {channels.map((c) => {
+              const count = unreads[c.id] || 0;
+              return (
+                <li key={c.id}>
+                  <button
+                    onClick={() => onSelect({ kind: "channel", id: c.id, channelId: c.id })}
+                    className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-1.5 ${
+                      isSelected("channel", c.id) ? "text-white font-semibold" : count > 0 ? "text-white font-bold" : ""
+                    }`}
+                    style={isSelected("channel", c.id) ? {
+                      background: theme.accent,
+                      boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
+                    } : undefined}
+                  >
+                    <span className="text-zinc-500 shrink-0">
+                      {c.is_private ? "🔒" : c.post_policy === "admin" ? "📢" : "#"}
+                    </span>
+                    <span className="truncate flex-1">{c.name}</span>
+                    {count > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0 shadow-sm animate-pulse">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
+
         </section>
 
         {/* Soporte por departamento */}
@@ -194,25 +217,33 @@ export function Sidebar({
                   {convs.length === 0 && (
                     <li className="px-4 py-0.5 text-xs text-zinc-600 italic">sin chats</li>
                   )}
-                  {convs.map((cv) => (
-                    <li key={cv.id}>
-                      <button
-                        onClick={() =>
-                          onSelect({ kind: "conversation", id: cv.id, channelId: cv.channel_id })
-                        }
-                        className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-2 ${
-                          isSelected("conversation", cv.id) ? "text-white" : ""
-                        }`}
-                        style={isSelected("conversation", cv.id) ? {
-                          background: theme.accent,
-                          boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
-                        } : undefined}
-                      >
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[cv.status]}`} />
-                        <span className="truncate">{cv.visitor_name}</span>
-                      </button>
-                    </li>
-                  ))}
+                  {convs.map((cv) => {
+                    const count = unreads[cv.channel_id] || 0;
+                    return (
+                      <li key={cv.id}>
+                        <button
+                          onClick={() =>
+                            onSelect({ kind: "conversation", id: cv.id, channelId: cv.channel_id })
+                          }
+                          className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-2 ${
+                            isSelected("conversation", cv.id) ? "text-white font-semibold" : count > 0 ? "text-white font-bold" : ""
+                          }`}
+                          style={isSelected("conversation", cv.id) ? {
+                            background: theme.accent,
+                            boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
+                          } : undefined}
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[cv.status]}`} />
+                          <span className="truncate flex-1">{cv.visitor_name}</span>
+                          {count > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0 shadow-sm animate-pulse">
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );
@@ -250,42 +281,51 @@ export function Sidebar({
             {dms.length === 0 && !dmPickerOpen && (
               <li className="px-4 py-0.5 text-xs text-zinc-600 italic">sin conversaciones</li>
             )}
-            {dms.map((dm) => (
-              <li key={dm.id}>
-                <button
-                  onClick={() => onSelect({ kind: "dm", id: dm.id, channelId: dm.id })}
-                  className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-2 ${
-                    isSelected("dm", dm.id) ? "text-white" : ""
-                  }`}
-                  style={isSelected("dm", dm.id) ? {
-                    background: theme.accent,
-                    boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
-                  } : undefined}
-                >
-                  <span className="relative shrink-0">
-                    <span
-                      className="w-5 h-5 rounded text-white flex items-center justify-center text-[10px] font-bold overflow-hidden"
-                      style={{ background: "#4f46e5" }}
-                    >
-                      {dm.other_avatar ? (
-                        <img src={dm.other_avatar} alt={dm.other_name} className="w-full h-full object-cover" />
-                      ) : (
-                        dm.other_name.charAt(0).toUpperCase()
-                      )}
+            {dms.map((dm) => {
+              const count = unreads[dm.id] || 0;
+              return (
+                <li key={dm.id}>
+                  <button
+                    onClick={() => onSelect({ kind: "dm", id: dm.id, channelId: dm.id })}
+                    className={`w-full text-left px-4 py-1 text-sm hover:bg-white/5 flex items-center gap-2 ${
+                      isSelected("dm", dm.id) ? "text-white font-semibold" : count > 0 ? "text-white font-bold" : ""
+                    }`}
+                    style={isSelected("dm", dm.id) ? {
+                      background: theme.accent,
+                      boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
+                    } : undefined}
+                  >
+                    <span className="relative shrink-0">
+                      <span
+                        className="w-5 h-5 rounded text-white flex items-center justify-center text-[10px] font-bold overflow-hidden"
+                        style={{ background: "#4f46e5" }}
+                      >
+                        {dm.other_avatar ? (
+                          <img src={dm.other_avatar} alt={dm.other_name} className="w-full h-full object-cover" />
+                        ) : (
+                          dm.other_name.charAt(0).toUpperCase()
+                        )}
+                      </span>
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border ${
+                          onlineIds.has(dm.other_id) ? "bg-green-400" : "bg-zinc-500"
+                        }`}
+                        style={{ borderColor: theme.sidebar }}
+                      />
                     </span>
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border ${
-                        onlineIds.has(dm.other_id) ? "bg-green-400" : "bg-zinc-500"
-                      }`}
-                      style={{ borderColor: theme.sidebar }}
-                    />
-                  </span>
-                  <span className="truncate">{dm.other_name}</span>
-                  {dm.other_status_emoji && <span className="text-xs shrink-0">{dm.other_status_emoji}</span>}
-                </button>
-              </li>
-            ))}
+                    <span className="truncate flex-1">{dm.other_name}</span>
+                    {dm.other_status_emoji && <span className="text-xs shrink-0">{dm.other_status_emoji}</span>}
+                    {count > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0 shadow-sm animate-pulse">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
+
         </section>
 
         {/* Equipo: presencia y estados */}

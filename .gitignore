@@ -9,6 +9,8 @@ out/
 app/dist/
 app/build/
 app/out/
+app/dist-app/
+.zcode/
 
 # Environment and Logs
 *.log

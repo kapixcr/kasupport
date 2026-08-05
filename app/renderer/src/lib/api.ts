@@ -5,21 +5,31 @@ export const API: string =
   (import.meta.env.VITE_API_URL as string) ||
   "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io";
 
-export const socket = io(API, { transports: ["websocket", "polling"] });
+export const socket = io(API, {
+  transports: ["websocket", "polling"],
+  autoConnect: false,
+  auth: (callback) => callback({ token: getToken() }),
+});
 
 
 // Id del agente logueado, para presencia (se registra al iniciar sesión)
 let currentAgentId: number | null = null;
 export function setPresenceAgent(id: number | null) {
   currentAgentId = id;
-  if (id && socket.connected) socket.emit("agents:join", id);
+  if (id) {
+    socket.auth = { token: getToken() };
+    if (!socket.connected) socket.connect();
+    else socket.emit("agents:join");
+  } else if (socket.connected) {
+    socket.disconnect();
+  }
 }
 
 // Al (re)conectar, unirse de nuevo al inbox de agentes.
 // Sin esto, tras un reinicio del server el socket reconecta pero pierde
 // la membresía de sala y dejan de llegar los mensajes en tiempo real.
 socket.on("connect", () => {
-  socket.emit("agents:join", currentAgentId ?? undefined);
+  if (currentAgentId) socket.emit("agents:join");
 });
 
 // Aviso de "está escribiendo..." (limitado a 1 cada 2 segundos por canal)
@@ -88,7 +98,9 @@ export interface Message {
   channel_id: number;
   conversation_id?: number | null;
   author_type: "agent" | "visitor";
+  author_id?: number | null;
   author_name: string;
+
   author_avatar?: string | null;
   body: string;
   kind: "text" | "sticker" | "image" | "file";
@@ -181,7 +193,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`${API}${path}`, { headers, ...init });
-  } catch (err) {
+  } catch {
     throw new Error(`No se pudo conectar con el servidor backend (${API})`);
   }
 
@@ -296,7 +308,32 @@ export const api = {
     }),
   deleteSticker: (name: string) =>
     req<{ ok: boolean }>(`/api/stickers/${name}`, { method: "DELETE" }),
+
+  // Reuniones tipo Google Meet
+  createMeeting: (title?: string) =>
+    req<Meeting>("/api/meetings", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+  getMeeting: (publicId: string) => req<Meeting>(`/api/meetings/${publicId}`),
+  joinMeeting: (publicId: string, displayName?: string) =>
+    req<{ join_token?: string; participant?: unknown }>(`/api/meetings/${publicId}/join`, {
+      method: "POST",
+      body: JSON.stringify({ display_name: displayName }),
+    }),
 };
+
+export interface Meeting {
+  id: number;
+  public_id: string;
+  title: string;
+  status: "active" | "ended";
+  created_at: string;
+  host_agent_id?: number | null;
+  host_name?: string;
+  host_avatar?: string | null;
+}
+
 
 export interface UploadedFilePayload {
   name: string;

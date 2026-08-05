@@ -5,6 +5,7 @@ import {
   emitTyping,
   fileToBase64,
   parseFileBody,
+  type Agent,
   type Channel,
   type Conversation,
   type Message,
@@ -14,6 +15,128 @@ import {
 } from "@/lib/api";
 import { ReactionsBar } from "@/components/Reactions";
 
+/* ------------------ modal para gestionar miembros de canales privados ------------------ */
+
+function ChannelMembersModal({
+  channel,
+  onClose,
+}: {
+  channel: Channel;
+  onClose: () => void;
+}) {
+  const [members, setMembers] = useState<Agent[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const loadData = () => {
+    api.channelMembers(channel.id).then(setMembers).catch(() => {});
+    api.agents().then(setAllAgents).catch(() => {});
+  };
+
+  useEffect(loadData, [channel.id]);
+
+  const nonMembers = allAgents.filter((a) => !members.some((m) => m.id === a.id));
+
+  const addMember = async () => {
+    if (!selectedId) return;
+    setLoading(true);
+    try {
+      await api.addChannelMember(channel.id, Number(selectedId));
+      setSelectedId("");
+      loadData();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeMember = async (agentId: number) => {
+    try {
+      await api.removeChannelMember(channel.id, agentId);
+      loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 pb-3 mb-4">
+          <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            🔒 Miembros de #{channel.name}
+          </h3>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl font-bold">
+            ×
+          </button>
+        </div>
+
+        {/* Formulario agregar miembro */}
+        <div className="mb-5">
+          <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
+            Agregar usuario al canal privado
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="flex-1 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              <option value="">Selecciona un miembro del equipo...</option>
+              {nonMembers.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.email})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={addMember}
+              disabled={!selectedId || loading}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white font-semibold text-xs rounded-lg px-4 py-2 shrink-0"
+            >
+              Agregar
+            </button>
+          </div>
+        </div>
+
+        {/* Lista de miembros actuales */}
+        <div>
+          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
+            Miembros actuales ({members.length})
+          </p>
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800 max-h-56 overflow-y-auto pr-1">
+            {members.map((m) => (
+              <li key={m.id} className="py-2.5 flex items-center gap-3">
+                <span
+                  className="w-7 h-7 rounded text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden"
+                  style={{ background: m.color || "#4f46e5" }}
+                >
+                  {m.avatar ? (
+                    <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
+                  ) : (
+                    m.name.charAt(0).toUpperCase()
+                  )}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{m.name}</p>
+                  <p className="text-xs text-zinc-400 truncate">{m.email}</p>
+                </div>
+                <button
+                  onClick={() => removeMember(m.id)}
+                  className="text-xs text-red-500 hover:text-red-700 hover:underline px-2 py-1"
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
 interface Props {
   title: string;
   subtitle?: string;
@@ -172,7 +295,9 @@ export function ChatArea({
   const [picker, setPicker] = useState<"none" | "emoji" | "sticker">("none");
   const [stickers, setStickers] = useState<StickerItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stickerFileRef = useRef<HTMLInputElement>(null);
@@ -285,14 +410,27 @@ export function ChatArea({
     <main className="flex-1 flex flex-col h-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       {/* Header */}
       <header className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-        <div>
-          <h2 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            {channel?.is_private && <span title="Canal privado">🔒</span>}
-            {channel?.post_policy === "admin" && <span title="Solo admins escriben">📢</span>}
-            {title}
-          </h2>
-          {subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              {channel?.is_private && <span title="Canal privado">🔒</span>}
+              {channel?.post_policy === "admin" && <span title="Solo admins escriben">📢</span>}
+              {title}
+            </h2>
+            {subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
+          </div>
+
+          {channel?.is_private && (
+            <button
+              onClick={() => setShowMembersModal(true)}
+              className="flex items-center gap-1 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors"
+              title="Gestionar miembros de este canal privado"
+            >
+              👥 Miembros
+            </button>
+          )}
         </div>
+
         {onToggleHuddle && (
           <button
             onClick={onToggleHuddle}
@@ -615,6 +753,10 @@ export function ChatArea({
           </div>
         )}
       </div>
+
+      {showMembersModal && channel && (
+        <ChannelMembersModal channel={channel} onClose={() => setShowMembersModal(false)} />
+      )}
     </main>
   );
 }

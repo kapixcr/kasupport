@@ -12,17 +12,46 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 const db = require('./db');
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
-
-app.use(cors());
-app.use(express.json({ limit: '25mb' })); // 25mb para subidas en base64
-app.use(express.static(path.join(__dirname, '..', 'public')));
+const { loadMeetingConfig } = require('./meetings/config');
+const { createMeetingRouter, registerMeetingSocketHandlers } = require('./meetings/router');
 
 const PORT = process.env.PORT || 4100;
 const JWT_SECRET = process.env.JWT_SECRET || 'kasupport-dev-secret';
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const meetingConfig = loadMeetingConfig(process.env, { requireLiveKit: isProduction });
+
+if (isProduction && JWT_SECRET === 'kasupport-dev-secret') {
+  throw new Error('JWT_SECRET seguro es obligatorio en producción');
+}
+if (isProduction && allowedOrigins.length === 0) {
+  throw new Error('ALLOWED_ORIGINS es obligatorio en producción');
+}
+
+const allowOrigin = (origin, callback) => {
+  if (!origin || (!isProduction && allowedOrigins.length === 0) || allowedOrigins.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(new Error('origen no permitido'));
+};
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: allowOrigin, credentials: true },
+  maxHttpBufferSize: 1e6,
+});
+
+app.use(cors({ origin: allowOrigin, credentials: true }));
+app.use(express.json({
+  limit: '25mb',
+  verify: (req, _res, buffer) => { req.rawBody = buffer; },
+})); // 25mb para subidas en base64 y body original para webhooks firmados
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 /* ---------------------------------- helpers ---------------------------------- */
 
@@ -37,15 +66,20 @@ const REACTIONS_SQL = `COALESCE((
 const AUTHOR_AVATAR_SQL = `(SELECT a.avatar FROM agents a WHERE a.id = m.author_id AND m.author_type = 'agent') AS author_avatar`;
 
 async function getChannelMessages(channelId, limit = 100) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 100);
   const { rows } = await db.query(
-    `SELECT m.id, m.channel_id, m.conversation_id, m.author_type, m.author_name, m.body, m.kind,
-            m.parent_id, m.created_at, ${AUTHOR_AVATAR_SQL},
-            (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) AS reply_count,
-            ${REACTIONS_SQL} AS reactions
-       FROM messages m
-      WHERE m.channel_id = $1 AND m.parent_id IS NULL
-      ORDER BY m.created_at ASC LIMIT $2`,
-    [channelId, limit]
+    `SELECT recent.* FROM (
+       SELECT m.id, m.channel_id, m.conversation_id, m.author_type, m.author_id, m.author_name,
+              m.body, m.kind, m.parent_id, m.created_at, ${AUTHOR_AVATAR_SQL},
+              (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) AS reply_count,
+              ${REACTIONS_SQL} AS reactions
+         FROM messages m
+        WHERE m.channel_id = $1 AND m.parent_id IS NULL
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT $2
+     ) recent
+     ORDER BY recent.created_at ASC, recent.id ASC`,
+    [channelId, safeLimit]
   );
   return rows;
 }
@@ -60,15 +94,15 @@ async function insertMessage({ channelId, conversationId = null, authorType, aut
 }
 
 async function broadcastMessage(message) {
-  // Adjuntar avatar del autor para que el tiempo real lo muestre sin recargar
+  // Adjuntar avatar del autor para que el tiempo real lo muestre sin recargar.
   if (message.author_type === 'agent' && message.author_id) {
     try {
       const { rows } = await db.query('SELECT avatar FROM agents WHERE id = $1', [message.author_id]);
       message.author_avatar = rows[0]?.avatar || null;
     } catch { /* sin avatar */ }
   }
+  // Agentes e invitados solo reciben mensajes de las salas autorizadas a las que se unieron.
   io.to(`channel:${message.channel_id}`).emit('message:new', message);
-  io.to('agents').emit('message:new', message);
 }
 
 const parseTheme = (t) => {
@@ -99,19 +133,24 @@ function signToken(agent) {
   return jwt.sign({ id: agent.id, role: agent.role }, JWT_SECRET, { expiresIn: '7d' });
 }
 
-async function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'no autenticado' });
+async function verifyAgentToken(token) {
+  if (!token) return null;
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const { rows } = await db.query('SELECT * FROM agents WHERE id = $1', [payload.id]);
-    if (!rows[0]) return res.status(401).json({ error: 'agente no existe' });
-    req.agent = rows[0];
-    next();
+    return rows[0] || null;
   } catch {
-    return res.status(401).json({ error: 'token inválido o expirado' });
+    return null;
   }
+}
+
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const agent = await verifyAgentToken(token);
+  if (!agent) return res.status(401).json({ error: 'token inválido, expirado o ausente' });
+  req.agent = agent;
+  next();
 }
 
 function requireAdmin(req, res, next) {
@@ -119,7 +158,33 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+async function agentCanAccessChannel(agent, channelId) {
+  const { rows } = await db.query(
+    `SELECT c.id, c.type, c.is_private,
+            EXISTS(SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.agent_id = $2) AS is_member
+       FROM channels c
+      WHERE c.id = $1 AND (c.archived = false OR c.archived IS NULL)`,
+    [channelId, agent.id]
+  );
+  const channel = rows[0];
+  if (!channel) return false;
+  if (channel.type === 'support') return true;
+  if (channel.type === 'dm') return !!channel.is_member;
+  return !channel.is_private || agent.role === 'admin' || !!channel.is_member;
+}
+
+async function requireChannelAccess(req, res, next) {
+  const channelId = req.params.id || req.params.channelId;
+  if (!(await agentCanAccessChannel(req.agent, channelId))) {
+    return res.status(403).json({ error: 'sin acceso a este canal' });
+  }
+  next();
+}
+
 app.post('/api/auth/register', async (req, res) => {
+  if (isProduction && process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+    return res.status(403).json({ error: 'registro público deshabilitado' });
+  }
   const { name, email, password } = req.body || {};
   if (!name?.trim() || !email?.trim() || !password) {
     return res.status(400).json({ error: 'name, email y password requeridos' });
@@ -219,6 +284,9 @@ app.patch('/api/agents/:id/role', requireAuth, requireAdmin, async (req, res) =>
     'UPDATE agents SET role = $1 WHERE id = $2 RETURNING id, name, email, color, role',
     [role, req.params.id]
   );
+  if (!rows[0]) return res.status(404).json({ error: 'agente no encontrado' });
+  if (role === 'admin') io.in(`agent:${rows[0].id}`).socketsJoin('admins');
+  else io.in(`agent:${rows[0].id}`).socketsLeave('admins');
   res.json(rows[0]);
 });
 
@@ -248,7 +316,24 @@ app.patch('/api/agents/:id/password', requireAuth, async (req, res) => {
 
 /* ----------------------------------- salud ----------------------------------- */
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'kasupport' }));
+app.get('/api/health', async (_req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ ok: true, service: 'kasupport', database: 'up' });
+  } catch {
+    res.status(503).json({ ok: false, service: 'kasupport', database: 'down' });
+  }
+});
+
+/* -------------------------------- reuniones ---------------------------------- */
+
+app.use('/api', createMeetingRouter({
+  db,
+  requireAuth,
+  verifyAgentToken,
+  io,
+  config: meetingConfig,
+}));
 
 /* ------------------------- departamentos (público GET) ------------------------ */
 
@@ -324,6 +409,9 @@ app.post('/api/channels', requireAuth, async (req, res) => {
   if (channel.is_private) {
     await db.query('INSERT INTO channel_members (channel_id, agent_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [channel.id, req.agent.id]);
+    io.in(`agent:${req.agent.id}`).socketsJoin(`channel:${channel.id}`);
+  } else {
+    io.in('agents').socketsJoin(`channel:${channel.id}`);
   }
   io.to('agents').emit('channel:new', channel);
   res.status(201).json(channel);
@@ -378,6 +466,8 @@ app.post('/api/dms', requireAuth, async (req, res) => {
       `INSERT INTO channel_members (channel_id, agent_id) VALUES ($1, $2), ($1, $3) ON CONFLICT DO NOTHING`,
       [channelId, a, b]
     );
+    io.in(`agent:${a}`).socketsJoin(`channel:${channelId}`);
+    io.in(`agent:${b}`).socketsJoin(`channel:${channelId}`);
     // Avisar a ambos para que recarguen sus DMs
     io.to('agents').emit('dm:new', { member_ids: [a, b] });
   }
@@ -389,6 +479,7 @@ app.patch('/api/channels/:id', requireAuth, requireAdmin, async (req, res) => {
   if (post_policy && !['all', 'admin'].includes(post_policy)) {
     return res.status(400).json({ error: 'post_policy inválido' });
   }
+  const before = await db.query('SELECT is_private FROM channels WHERE id = $1', [req.params.id]);
   const { rows } = await db.query(
     `UPDATE channels SET
        name = COALESCE($1, name),
@@ -401,12 +492,21 @@ app.patch('/api/channels/:id', requireAuth, requireAdmin, async (req, res) => {
      req.params.id]
   );
   if (!rows[0]) return res.status(404).json({ error: 'canal no existe' });
+  if (before.rows[0] && before.rows[0].is_private !== rows[0].is_private) {
+    if (rows[0].is_private) {
+      const members = await db.query('SELECT agent_id FROM channel_members WHERE channel_id = $1', [rows[0].id]);
+      io.in('agents').socketsLeave(`channel:${rows[0].id}`);
+      members.rows.forEach((member) => io.in(`agent:${member.agent_id}`).socketsJoin(`channel:${rows[0].id}`));
+    } else {
+      io.in('agents').socketsJoin(`channel:${rows[0].id}`);
+    }
+  }
   io.to('agents').emit('channel:update', rows[0]);
   res.json(rows[0]);
 });
 
 // Miembros de canales privados
-app.get('/api/channels/:id/members', requireAuth, async (req, res) => {
+app.get('/api/channels/:id/members', requireAuth, requireChannelAccess, async (req, res) => {
   const { rows } = await db.query(
     `SELECT a.id, a.name, a.email, a.role, a.avatar
        FROM channel_members cm JOIN agents a ON a.id = cm.agent_id
@@ -416,18 +516,20 @@ app.get('/api/channels/:id/members', requireAuth, async (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/channels/:id/members', requireAuth, async (req, res) => {
+app.post('/api/channels/:id/members', requireAuth, requireAdmin, async (req, res) => {
   const { agentId } = req.body || {};
   if (!agentId) return res.status(400).json({ error: 'agentId requerido' });
   await db.query('INSERT INTO channel_members (channel_id, agent_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
     [req.params.id, agentId]);
+  io.in(`agent:${Number(agentId)}`).socketsJoin(`channel:${Number(req.params.id)}`);
   io.to('agents').emit('channel:update', { id: Number(req.params.id) });
   res.status(201).json({ ok: true });
 });
 
-app.delete('/api/channels/:id/members/:agentId', requireAuth, async (req, res) => {
+app.delete('/api/channels/:id/members/:agentId', requireAuth, requireAdmin, async (req, res) => {
   await db.query('DELETE FROM channel_members WHERE channel_id = $1 AND agent_id = $2',
     [req.params.id, req.params.agentId]);
+  io.in(`agent:${Number(req.params.agentId)}`).socketsLeave(`channel:${Number(req.params.id)}`);
   io.to('agents').emit('channel:update', { id: Number(req.params.id) });
   res.json({ ok: true });
 });
@@ -443,7 +545,7 @@ app.delete('/api/channels/:id', requireAuth, requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/channels/:id/messages', requireAuth, async (req, res) => {
+app.get('/api/channels/:id/messages', requireAuth, requireChannelAccess, async (req, res) => {
   res.json(await getChannelMessages(req.params.id));
 });
 
@@ -529,6 +631,11 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
 
 // Hilo: padre + respuestas
 app.get('/api/messages/:id/replies', requireAuth, async (req, res) => {
+  const access = await db.query('SELECT channel_id FROM messages WHERE id = $1', [req.params.id]);
+  if (!access.rows[0]) return res.status(404).json({ error: 'mensaje no existe' });
+  if (!(await agentCanAccessChannel(req.agent, access.rows[0].channel_id))) {
+    return res.status(403).json({ error: 'sin acceso a este canal' });
+  }
   const parent = await db.query(
     `SELECT m.id, m.channel_id, m.conversation_id, m.author_type, m.author_name, m.body, m.kind,
             m.parent_id, m.created_at, ${AUTHOR_AVATAR_SQL}, ${REACTIONS_SQL} AS reactions
@@ -553,6 +660,9 @@ app.post('/api/messages/:id/reactions', requireAuth, async (req, res) => {
   }
   const msg = await db.query('SELECT id, channel_id FROM messages WHERE id = $1', [req.params.id]);
   if (!msg.rows[0]) return res.status(404).json({ error: 'mensaje no existe' });
+  if (!(await agentCanAccessChannel(req.agent, msg.rows[0].channel_id))) {
+    return res.status(403).json({ error: 'sin acceso a este canal' });
+  }
 
   const existing = await db.query(
     'SELECT id FROM reactions WHERE message_id = $1 AND agent_id = $2 AND emoji = $3',
@@ -572,7 +682,7 @@ app.post('/api/messages/:id/reactions', requireAuth, async (req, res) => {
     );
     const am = author.rows[0];
     if (am && am.author_type === 'agent' && am.author_id && am.author_id !== req.agent.id) {
-      io.to('agents').emit('reaction:added', {
+      io.to(`agent:${am.author_id}`).emit('reaction:added', {
         message_id: Number(req.params.id),
         channel_id: msg.rows[0].channel_id,
         emoji,
@@ -592,7 +702,7 @@ app.post('/api/messages/:id/reactions', requireAuth, async (req, res) => {
     channel_id: msg.rows[0].channel_id,
     reactions: agg.rows[0].reactions,
   };
-  io.to('agents').emit('reaction:update', payload);
+  io.to(`channel:${payload.channel_id}`).emit('reaction:update', payload);
   res.json(payload);
 });
 
@@ -670,6 +780,7 @@ app.post('/api/widget/session', async (req, res) => {
       visitor: { id: visitor.id, name: visitor.name },
       department: dept.rows[0],
     };
+    io.in('agents').socketsJoin(`channel:${channel.id}`);
     io.to('agents').emit('conversation:new', { ...payload, visitor: { ...payload.visitor, email, phone } });
     res.status(201).json(payload);
   } catch (e) {
@@ -820,11 +931,79 @@ app.delete('/api/stickers/:name', requireAuth, requireAdmin, (req, res) => {
 
 /* --------------------------------- Socket.IO ---------------------------------- */
 
+
 // Presencia: agentId -> número de sockets conectados
 const onlineAgents = new Map();
 
+// Reuniones independientes tipo Google Meet: meetingCode -> Map(participantId -> { id, name, avatar, isGuest, handRaised, sockets:Set })
+const meetingRooms = new Map();
+const meetingWaitingRooms = new Map();
+
+function getMeetingParticipants(code) {
+  const room = meetingRooms.get(code);
+  if (!room) return [];
+  return [...room.values()].map((p) => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    isGuest: !!p.isGuest,
+    handRaised: !!p.handRaised,
+    audioActive: !!p.audioActive,
+  }));
+}
+
+function getMeetingWaitingList(code) {
+  const room = meetingWaitingRooms.get(code);
+  if (!room) return [];
+  return [...room.values()].map((p) => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+    socketId: p.socketId,
+  }));
+}
+
+function broadcastMeetingState(code) {
+  io.to(`meeting:${code}`).emit('meeting:state', {
+    code,
+    participants: getMeetingParticipants(code),
+    waitingList: getMeetingWaitingList(code),
+  });
+}
+
+function leaveMeetingRoom(socket) {
+  const code = socket.data.meetingCode;
+  const pId = socket.data.meetingParticipantId;
+  if (!code || !pId) return;
+
+  const room = meetingRooms.get(code);
+  if (room && room.has(pId)) {
+    const p = room.get(pId);
+    p.sockets.delete(socket.id);
+    if (p.sockets.size === 0) {
+      room.delete(pId);
+    }
+    if (room.size === 0) {
+      meetingRooms.delete(code);
+    }
+    broadcastMeetingState(code);
+  }
+
+  const waiting = meetingWaitingRooms.get(code);
+  if (waiting && waiting.has(socket.id)) {
+    waiting.delete(socket.id);
+    if (waiting.size === 0) meetingWaitingRooms.delete(code);
+    broadcastMeetingState(code);
+  }
+
+  socket.leave(`meeting:${code}`);
+  socket.data.meetingCode = null;
+  socket.data.meetingParticipantId = null;
+}
+
 // Huddles activos: channelId -> Map(agentId -> { name, avatar, sockets:Set })
 const huddles = new Map();
+
 
 function huddleParticipants(channelId) {
   const room = huddles.get(channelId);
@@ -833,7 +1012,7 @@ function huddleParticipants(channelId) {
 }
 
 function broadcastHuddleState(channelId) {
-  io.to('agents').emit('huddle:state', {
+  io.to(`channel:${channelId}`).emit('huddle:state', {
     channel_id: channelId,
     participants: huddleParticipants(channelId),
   });
@@ -855,23 +1034,55 @@ function leaveHuddles(socket, onlyChannel = null) {
       if (room.size === 0) huddles.delete(ch);
       broadcastHuddleState(ch);
     }
+    socket.leave(`huddle:${ch}`);
     set.delete(ch);
   }
 }
 
+io.use(async (socket, next) => {
+  const staffToken = socket.handshake.auth?.token;
+  const widgetToken = socket.handshake.auth?.widgetToken;
+  if (staffToken) {
+    const agent = await verifyAgentToken(staffToken);
+    if (!agent) return next(new Error('no autenticado'));
+    socket.data.agent = agent;
+    socket.data.agentId = agent.id;
+    return next();
+  }
+  if (widgetToken) {
+    const conversation = await conversationByToken(widgetToken);
+    if (!conversation) return next(new Error('sesión de widget inválida'));
+    socket.data.widget = conversation;
+    return next();
+  }
+  next(); // Los invitados Meet se autentican después con su token acotado a la sala.
+});
+
+registerMeetingSocketHandlers(io, { db, config: meetingConfig, verifyAgentToken });
+
 io.on('connection', (socket) => {
-  socket.on('agents:join', (agentId) => {
+  socket.on('agents:join', () => {
+    const id = socket.data.agentId;
+    if (!id || socket.data.presenceJoined) return;
+    socket.data.presenceJoined = true;
     socket.join('agents');
-    // Enviar el estado actual de los huddles al recién conectado
+    socket.join(`agent:${id}`);
+    if (socket.data.agent.role === 'admin') socket.join('admins');
+    void db.query(
+      `SELECT c.id FROM channels c
+        WHERE (c.archived = false OR c.archived IS NULL)
+          AND (c.type = 'support' OR c.is_private = false OR $2::boolean OR
+               EXISTS(SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.agent_id = $1))`,
+      [id, socket.data.agent.role === 'admin']
+    ).then(({ rows }) => rows.forEach((row) => socket.join(`channel:${row.id}`))).catch(() => {});
+    // Enviar solo huddles de canales que el agente puede ver.
     for (const ch of huddles.keys()) {
-      socket.emit('huddle:state', { channel_id: ch, participants: huddleParticipants(ch) });
+      void agentCanAccessChannel(socket.data.agent, ch).then((allowed) => {
+        if (allowed) socket.emit('huddle:state', { channel_id: ch, participants: huddleParticipants(ch) });
+      });
     }
-    const id = Number(agentId);
-    if (!id) return;
-    socket.data.agentId = id;
     const count = (onlineAgents.get(id) || 0) + 1;
     onlineAgents.set(id, count);
-    // El que entra recibe la lista completa; los demás reciben el cambio
     socket.emit('presence:list', [...onlineAgents.keys()]);
     if (count === 1) {
       socket.to('agents').emit('presence:update', { agent_id: id, online: true });
@@ -881,7 +1092,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     leaveHuddles(socket); // sacar de cualquier huddle al desconectarse
     const id = socket.data.agentId;
-    if (!id) return;
+    if (!id || !socket.data.presenceJoined) return;
     const count = (onlineAgents.get(id) || 1) - 1;
     if (count <= 0) {
       onlineAgents.delete(id);
@@ -891,32 +1102,36 @@ io.on('connection', (socket) => {
     }
   });
 
-  // "Está escribiendo...": se reenvía al canal (widget) y a los agentes
-  socket.on('typing', (data) => {
-    const { channelId, name, authorType } = data || {};
+  // "Está escribiendo...": identidad y canal salen de la sesión autenticada.
+  socket.on('typing', async (data) => {
+    const channelId = Number(data?.channelId);
     if (!channelId) return;
-    const payload = {
-      channel_id: Number(channelId),
-      name: String(name || 'Alguien'),
-      author_type: authorType === 'visitor' ? 'visitor' : 'agent',
-    };
-    socket.to('agents').emit('typing', payload);
-    socket.to(`channel:${payload.channel_id}`).emit('typing', payload);
+    let payload;
+    if (socket.data.agent && await agentCanAccessChannel(socket.data.agent, channelId)) {
+      payload = { channel_id: channelId, name: socket.data.agent.name, author_type: 'agent' };
+    } else if (socket.data.widget?.channel_id === channelId) {
+      payload = { channel_id: channelId, name: socket.data.widget.visitor_name, author_type: 'visitor' };
+    } else {
+      return;
+    }
+    socket.to(`channel:${channelId}`).emit('typing', payload);
   });
 
-  // Señalización de llamadas 1:1 (WebRTC): reenvío simple; el cliente filtra por "to"
+  // Señalización 1:1 dirigida; el servidor deriva el remitente y exige identidad staff.
   for (const ev of ['call:invite', 'call:accept', 'call:decline', 'call:signal', 'call:end']) {
     socket.on(ev, (data) => {
-      if (data && data.to) socket.to('agents').emit(ev, data);
+      if (!socket.data.agent || !Number(data?.to)) return;
+      const payload = { ...data, from: publicAgent(socket.data.agent) };
+      io.to(`agent:${Number(data.to)}`).emit(ev, payload);
     });
   }
 
   /* -------------------- Huddles: salas de voz/video por canal -------------------- */
   // channelId -> Map(agentId -> { name, avatar, sockets:Set<socketId> })
-  socket.on('huddle:join', (data) => {
+  socket.on('huddle:join', async (data) => {
     const channelId = Number(data?.channelId);
-    const a = data?.agent;
-    if (!channelId || !a?.id) return;
+    const a = socket.data.agent;
+    if (!channelId || !a || !(await agentCanAccessChannel(a, channelId))) return;
     if (!huddles.has(channelId)) huddles.set(channelId, new Map());
     const room = huddles.get(channelId);
     const existing = huddleParticipants(channelId).filter((p) => p.id !== a.id);
@@ -924,43 +1139,39 @@ io.on('connection', (socket) => {
     room.get(a.id).sockets.add(socket.id);
     socket.data.huddles = socket.data.huddles || new Set();
     socket.data.huddles.add(channelId);
-    // El que entra recibe los participantes existentes (a quienes les hará offer)
+    socket.join(`huddle:${channelId}`);
     socket.emit('huddle:joined', { channel_id: channelId, participants: existing });
     broadcastHuddleState(channelId);
   });
 
   socket.on('huddle:leave', (data) => leaveHuddles(socket, Number(data?.channelId)));
 
-  // Señalización grupal: { channelId, to, from, data } — cada cliente filtra por "to"
+  // Señalización grupal acotada a la sala y con remitente derivado.
   socket.on('huddle:signal', (data) => {
-    if (data && data.to) socket.to('agents').emit('huddle:signal', data);
+    const channelId = Number(data?.channelId);
+    const to = Number(data?.to);
+    const from = socket.data.agentId;
+    if (!channelId || !to || !from || !socket.data.huddles?.has(channelId)) return;
+    socket.to(`huddle:${channelId}`).emit('huddle:signal', { ...data, channelId, to, from });
   });
 
-  socket.on('channel:join', (channelId) => {
-    if (channelId) socket.join(`channel:${channelId}`);
+  socket.on('channel:join', async (value) => {
+    const channelId = Number(value?.channelId ?? value);
+    if (!channelId) return;
+    if (socket.data.agent && await agentCanAccessChannel(socket.data.agent, channelId)) {
+      socket.join(`channel:${channelId}`);
+    } else if (socket.data.widget?.channel_id === channelId) {
+      socket.join(`channel:${channelId}`);
+    }
   });
-  socket.on('channel:leave', (channelId) => {
+  socket.on('channel:leave', (value) => {
+    const channelId = Number(value?.channelId ?? value);
     if (channelId) socket.leave(`channel:${channelId}`);
   });
 
-  socket.on('message:send', async (data, ack) => {
-    try {
-      const { channelId, conversationId, authorType, authorName, body, kind, parentId } = data || {};
-      if (!channelId || !body) return ack?.({ error: 'channelId y body requeridos' });
-      const message = await insertMessage({
-        channelId,
-        conversationId: conversationId || null,
-        authorType: authorType || 'agent',
-        authorName: authorName || 'Agente',
-        body: String(body).trim(),
-        kind: kind === 'sticker' ? 'sticker' : 'text',
-        parentId: parentId || null,
-      });
-      broadcastMessage(message);
-      ack?.({ message });
-    } catch (e) {
-      ack?.({ error: e.message });
-    }
+  // La escritura persistente se realiza por REST, donde se validan membresía y autor.
+  socket.on('message:send', (_data, ack) => {
+    ack?.({ error: 'usa los endpoints REST autenticados para enviar mensajes' });
   });
 });
 
@@ -968,7 +1179,9 @@ io.on('connection', (socket) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'error interno', detail: err.message });
+  const payload = { error: 'error interno' };
+  if (!isProduction) payload.detail = err.message;
+  res.status(500).json(payload);
 });
 
 db.initDb().then(() => {
@@ -976,5 +1189,19 @@ db.initDb().then(() => {
     console.log(`Kasupport server en http://localhost:${PORT}`);
     console.log(`Widget embed: http://localhost:${PORT}/widget.js`);
   });
+}).catch((err) => {
+  console.error('No se pudo inicializar Kasupport:', err);
+  process.exitCode = 1;
 });
+
+async function shutdown(signal) {
+  console.log(`${signal}: cerrando Kasupport`);
+  io.close();
+  await new Promise((resolve) => server.close(resolve));
+  await db.pool.end();
+  process.exit(0);
+}
+
+process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.once('SIGINT', () => { void shutdown('SIGINT'); });
 

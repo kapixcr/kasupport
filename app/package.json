@@ -28,6 +28,11 @@
       "category": "public.app-category.business",
       "icon": "build/icon.icns",
       "identity": null,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Kasupport usa la cámara para llamadas y reuniones cuando tú la activas.",
+        "NSMicrophoneUsageDescription": "Kasupport usa el micrófono para llamadas y reuniones cuando tú lo activas.",
+        "NSScreenCaptureUsageDescription": "Kasupport comparte tu pantalla únicamente cuando tú lo solicitas."
+      },
       "target": [
         {
           "target": "dmg",

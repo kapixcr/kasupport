@@ -15,6 +15,37 @@ pool.on('error', (err) => {
   console.error('× Error en cliente inactivo de PostgreSQL:', err.message);
 });
 
+async function applyMigrations() {
+  const migrationsDir = path.join(__dirname, '..', 'migrations');
+  if (!fs.existsSync(migrationsDir)) return;
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+
+  const files = fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort();
+  for (const name of files) {
+    const alreadyApplied = await pool.query('SELECT 1 FROM schema_migrations WHERE name = $1', [name]);
+    if (alreadyApplied.rows.length) continue;
+
+    const sql = fs.readFileSync(path.join(migrationsDir, name), 'utf8');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [name]);
+      await client.query('COMMIT');
+      console.log(`✓ Migración aplicada: ${name}`);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+}
+
 async function initDb() {
   const schemaPath = path.join(__dirname, '..', 'schema.sql');
   if (!fs.existsSync(schemaPath)) return;
@@ -22,7 +53,8 @@ async function initDb() {
   try {
     const sql = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(sql);
-    console.log('✓ Base de datos e índices inicializados (schema.sql)');
+    await applyMigrations();
+    console.log('✓ Base de datos, migraciones e índices inicializados');
   } catch (err) {
     console.error('× Intento inicial en DB falló:', err.message);
 
@@ -39,11 +71,15 @@ async function initDb() {
 
         const sql = fs.readFileSync(schemaPath, 'utf8');
         await pool.query(sql);
-        console.log('✓ Esquema aplicado exitosamente');
+        await applyMigrations();
+        console.log('✓ Esquema y migraciones aplicados exitosamente');
       } catch (createErr) {
         console.error('× No se pudo auto-crear la base de datos:', createErr.message);
+        throw createErr;
       }
+      return;
     }
+    throw err;
   }
 }
 
