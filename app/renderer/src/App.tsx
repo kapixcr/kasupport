@@ -500,9 +500,25 @@ export default function App() {
   if (!authChecked) {
     return <div className="h-screen w-screen bg-[#19171d]" />;
   }
+
+  // Permitir que invitados externos se unan a reuniones por enlace sin login previo
+  if (activeMeetingCode && !agent) {
+    return (
+      <MeetingRoom
+        me={null}
+        meetingCode={activeMeetingCode}
+        onLeave={() => {
+          setActiveMeetingCode(null);
+          window.location.hash = "";
+        }}
+      />
+    );
+  }
+
   if (!agent) {
     return <AuthScreen onAuth={setAgent} />;
   }
+
 
   const theme: Theme = agent.theme ?? DEFAULT_THEME;
 

@@ -1309,10 +1309,22 @@ io.on('connection', (socket) => {
   socket.on('message:send', (_data, ack) => {
     ack?.({ error: 'usa los endpoints REST autenticados para enviar mensajes' });
   });
+/* -------------------------- SPA Fallback para Web -------------------------- */
+
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/stickers')) {
+    return next();
+  }
+  const indexPath = path.join(PUBLIC_DIR, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.sendFile(path.join(PUBLIC_DIR, 'demo.html'));
+  }
 });
 
-
 /* ----------------------------------- errores ----------------------------------- */
+
 
 app.use((err, _req, res, _next) => {
   console.error(err);
