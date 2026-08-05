@@ -63,8 +63,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
+      webSecurity: false,
     },
+
   });
 
   // Compartir pantalla solo desde el renderer confiable. Electron usará el
