@@ -38,6 +38,7 @@ interface Props {
   onSearchSelect: (r: SearchResult) => void;
   unreads?: Record<number, number>;
   onNewMeeting?: () => void;
+  onOpenCalendar?: () => void;
 }
 
 export function Sidebar({
@@ -51,7 +52,6 @@ export function Sidebar({
   agent,
   theme,
   unreads = {},
-
   onSelect,
   onAddChannel,
   onStartDm,
@@ -61,6 +61,7 @@ export function Sidebar({
   onAgentChange,
   onSearchSelect,
   onNewMeeting,
+  onOpenCalendar,
 }: Props) {
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -120,15 +121,26 @@ export function Sidebar({
 
       <div className="pt-3 pb-2 border-b border-white/10 px-3 space-y-2">
         <SearchBar onSelect={onSearchSelect} />
-        {onNewMeeting && (
-          <button
-            onClick={onNewMeeting}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 flex items-center justify-center gap-2 transition-all shadow-md"
-          >
-            <span>📹</span>
-            <span>Nueva Reunión</span>
-          </button>
-        )}
+        <div className="flex gap-2">
+          {onNewMeeting && (
+            <button
+              onClick={onNewMeeting}
+              className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 flex items-center justify-center gap-1.5 transition-all shadow-md"
+            >
+              <span>📹</span>
+              <span>Reunión</span>
+            </button>
+          )}
+          {onOpenCalendar && (
+            <button
+              onClick={onOpenCalendar}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 font-bold text-xs rounded-xl py-2 flex items-center justify-center gap-1.5 transition-all shadow-md"
+            >
+              <span>📅</span>
+              <span>Agenda</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 space-y-5">

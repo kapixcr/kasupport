@@ -27,6 +27,7 @@ import { ThreadPanel } from "@/components/ThreadPanel";
 import { CallManager, type CallPeer } from "@/components/CallManager";
 import { HuddleManager, type HuddleParticipant } from "@/components/HuddleManager";
 import { MeetingRoom } from "@/components/MeetingRoom";
+import { MeetingCalendarModal } from "@/components/MeetingCalendarModal";
 
 export default function App() {
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -37,12 +38,14 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [openThread, setOpenThread] = useState<Message | null>(null);
   const [callRequest, setCallRequest] = useState<CallPeer | null>(null);
   const [huddles, setHuddles] = useState<Record<number, HuddleParticipant[]>>({});
   const [huddleChannel, setHuddleChannel] = useState<number | null>(null);
   const [activeMeetingCode, setActiveMeetingCode] = useState<string | null>(null);
   const [highlightMsgId, setHighlightMsgId] = useState<number | null>(null);
+
 
   // Escuchar enlaces de reunión en URL (ej: #meet/meet-x89q2p)
   useEffect(() => {
@@ -518,7 +521,9 @@ export default function App() {
         onSearchSelect={handleSearchSelect}
         unreads={unreads}
         onNewMeeting={handleCreateMeeting}
+        onOpenCalendar={() => setCalendarOpen(true)}
       />
+
 
 
       {selection && current ? (
@@ -584,7 +589,19 @@ export default function App() {
           }}
         />
       )}
+      {calendarOpen && agent && (
+        <MeetingCalendarModal
+          agents={agents}
+          currentAgent={agent}
+          onJoinMeeting={(code) => {
+            setCalendarOpen(false);
+            setActiveMeetingCode(code);
+          }}
+          onClose={() => setCalendarOpen(false)}
+        />
+      )}
       {settingsOpen && (
+
 
         <SettingsModal
           me={agent}

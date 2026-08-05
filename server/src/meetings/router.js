@@ -138,20 +138,42 @@ function createMeetingRouter({ db, requireAuth, verifyAgentToken, io, config }) 
   /* ----------------------------- Staff endpoints ----------------------------- */
 
   router.post('/meetings', requireAuth, asyncRoute(async (req, res) => {
-    ensureLiveKit(config);
+    if (config?.livekit?.enabled) {
+      ensureLiveKit(config);
+    }
     const title = normalizeTitle(req.body?.title || 'Reunión de Kasupport');
     const lobbyEnabled = req.body?.lobby_enabled !== false;
     const livekitRoomName = `ks-${crypto.randomBytes(6).toString('hex')}`;
     const publicId = createPublicId();
+    const startsAt = req.body?.starts_at ? new Date(req.body.starts_at) : new Date();
+    const isFuture = req.body?.starts_at && new Date(req.body.starts_at) > new Date();
+    const status = isFuture ? 'waiting' : 'active';
+
     const { rows } = await db.query(
-      `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status, lobby_enabled, max_participants)
-       VALUES ($1, $2, $3, $4, 'active', $5, $6)
+      `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status, lobby_enabled, max_participants, starts_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [publicId, title, livekitRoomName, req.agent.id, lobbyEnabled, config.maxParticipants]
+      [publicId, title, livekitRoomName, req.agent.id, status, lobbyEnabled, config.maxParticipants, startsAt]
     );
     const meeting = rows[0];
     const participant = await authorizeAgent(db, meeting, req.agent);
     await insertEvent(db, meeting.id, 'meeting.created', { actorParticipantId: participant.id });
+
+    // Invitar participantes adicionales si se especificaron
+    if (Array.isArray(req.body?.participant_agent_ids)) {
+      for (const agentId of req.body.participant_agent_ids) {
+        if (Number(agentId) !== Number(req.agent.id)) {
+          await db.query(
+            `INSERT INTO meeting_participants (meeting_id, participant_type, agent_id, display_name, role, status, livekit_identity)
+             SELECT $1, 'agent', a.id, a.name, 'participant', 'admitted', 'agent_' || a.id
+               FROM agents a WHERE a.id = $2
+             ON CONFLICT DO NOTHING`,
+            [meeting.id, Number(agentId)]
+          );
+        }
+      }
+    }
+
     let payload;
     try {
       payload = await joinResponse(db, config, services, meeting, participant);
@@ -162,11 +184,62 @@ function createMeetingRouter({ db, requireAuth, verifyAgentToken, io, config }) 
     res.status(201).json(payload);
   }));
 
+  router.get('/meetings/calendar', requireAuth, asyncRoute(async (req, res) => {
+    const { rows } = await db.query(
+      `SELECT m.id, m.public_id, m.title, m.status, m.starts_at, m.started_at, m.ended_at, m.created_at,
+              m.created_by_agent_id, a.name AS host_name, a.avatar AS host_avatar,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', mp.agent_id,
+                    'name', mp.display_name,
+                    'role', mp.role,
+                    'status', mp.status
+                  )
+                ) FILTER (WHERE mp.id IS NOT NULL), '[]'::json
+              ) AS participants
+         FROM meetings m
+         LEFT JOIN agents a ON a.id = m.created_by_agent_id
+         LEFT JOIN meeting_participants mp ON mp.meeting_id = m.id
+        WHERE m.status IN ('active', 'waiting', 'scheduled') OR m.created_at > (now() - interval '30 days')
+        GROUP BY m.id, a.name, a.avatar
+        ORDER BY COALESCE(m.starts_at, m.created_at) ASC`
+    );
+    res.json({ meetings: rows });
+  }));
+
+  router.get('/meetings/availability', requireAuth, asyncRoute(async (req, res) => {
+    const agentId = Number(req.query.agent_id);
+    const dateStr = String(req.query.date || new Date().toISOString().split('T')[0]);
+
+    if (!agentId) return res.status(400).json({ error: 'agent_id es requerido' });
+
+    const { rows } = await db.query(
+      `SELECT m.id, m.public_id, m.title, m.status, m.starts_at, m.started_at, m.ended_at, m.created_at
+         FROM meetings m
+         JOIN meeting_participants mp ON mp.meeting_id = m.id
+        WHERE mp.agent_id = $1
+          AND m.status IN ('active', 'waiting', 'scheduled')
+          AND (DATE(COALESCE(m.starts_at, m.created_at)) = $2::date)
+        ORDER BY COALESCE(m.starts_at, m.created_at) ASC`,
+      [agentId, dateStr]
+    );
+
+    res.json({
+      agent_id: agentId,
+      date: dateStr,
+      is_occupied: rows.some((r) => r.status === 'active'),
+      scheduled_count: rows.length,
+      meetings: rows,
+    });
+  }));
+
   router.get('/meetings', requireAuth, asyncRoute(async (req, res) => {
     const limit = parsePositiveInt(req.query.limit, 50, { max: 100 });
     const rows = await listMeetings(db, req.agent.id, { limit });
     res.json({ meetings: rows.map((row) => serializeMeeting(row, { appPublicUrl: config.appPublicUrl })) });
   }));
+
 
   router.post('/meetings/livekit/webhook', asyncRoute(async (req, res) => {
     const event = await receiveWebhook(services, config, String(req.rawBody || ''), req.headers.authorization || '');

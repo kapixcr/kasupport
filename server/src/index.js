@@ -849,12 +849,18 @@ app.post('/api/widget/upload', async (req, res) => {
 
 const fs = require('fs');
 const crypto = require('crypto');
-const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads');
-const STICKERS_DIR = path.join(__dirname, '..', 'public', 'stickers');
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads');
+const STICKERS_DIR = path.join(PUBLIC_DIR, 'stickers');
+
+[PUBLIC_DIR, UPLOADS_DIR, STICKERS_DIR].forEach((dir) => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
 
 const EXT_BY_MIME = {
-  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
   'image/svg+xml': 'svg', 'application/pdf': 'pdf', 'text/plain': 'txt',
   'application/zip': 'zip', 'application/msword': 'doc',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
@@ -863,10 +869,21 @@ const EXT_BY_MIME = {
 };
 
 function saveBase64({ data, mime, dir, baseName }) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const buf = Buffer.from(String(data || ''), 'base64');
   if (!buf.length) throw Object.assign(new Error('archivo vacío'), { status: 400 });
   if (buf.length > MAX_UPLOAD_BYTES) throw Object.assign(new Error('archivo supera 15 MB'), { status: 413 });
-  const ext = EXT_BY_MIME[mime] || 'bin';
+  
+  let ext = EXT_BY_MIME[mime];
+  if (!ext) {
+    if (String(mime).includes('png')) ext = 'png';
+    else if (String(mime).includes('jpeg') || String(mime).includes('jpg')) ext = 'jpg';
+    else if (String(mime).includes('gif')) ext = 'gif';
+    else if (String(mime).includes('webp')) ext = 'webp';
+    else if (String(mime).includes('svg')) ext = 'svg';
+    else ext = 'png';
+  }
+
   const filename = `${baseName}.${ext}`;
   fs.writeFileSync(path.join(dir, filename), buf);
   return { filename, size: buf.length };
@@ -893,6 +910,7 @@ app.post('/api/upload', requireAuth, (req, res) => {
 /* --------------------------- stickers personalizados -------------------------- */
 
 app.get('/api/stickers', requireAuth, (_req, res) => {
+  if (!fs.existsSync(STICKERS_DIR)) fs.mkdirSync(STICKERS_DIR, { recursive: true });
   const files = fs.readdirSync(STICKERS_DIR).filter((f) => /\.(svg|png|gif|webp|jpg|jpeg)$/i.test(f));
   res.json(files.map((f) => ({
     name: f.replace(/\.[^.]+$/, ''),
@@ -900,7 +918,7 @@ app.get('/api/stickers', requireAuth, (_req, res) => {
   })));
 });
 
-app.post('/api/stickers', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/stickers', requireAuth, (req, res) => {
   const { name, mime, data } = req.body || {};
   if (!name?.trim() || !data || !mime) return res.status(400).json({ error: 'name, mime y data requeridos' });
   if (!String(mime).startsWith('image/')) return res.status(400).json({ error: 'solo imágenes' });
@@ -914,6 +932,7 @@ app.post('/api/stickers', requireAuth, requireAdmin, (req, res) => {
     res.status(e.status || 500).json({ error: e.message });
   }
 });
+
 
 app.delete('/api/stickers/:name', requireAuth, requireAdmin, (req, res) => {
   const safe = String(req.params.name).replace(/[^a-z0-9-]/gi, '');
