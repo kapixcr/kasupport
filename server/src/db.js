@@ -46,6 +46,38 @@ async function applyMigrations() {
   }
 }
 
+async function ensureMeetingColumns() {
+  const alterStatements = [
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS public_id TEXT",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS code TEXT",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS livekit_room_name TEXT",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS created_by_agent_id INT REFERENCES agents(id) ON DELETE SET NULL",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS host_agent_id INT REFERENCES agents(id) ON DELETE SET NULL",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lobby_enabled BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recording_enabled BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS max_participants INT NOT NULL DEFAULT 15",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{}'::jsonb",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()",
+    "UPDATE meetings SET public_id = code WHERE public_id IS NULL AND code IS NOT NULL",
+    "UPDATE meetings SET code = public_id WHERE code IS NULL AND public_id IS NOT NULL",
+    "UPDATE meetings SET created_by_agent_id = host_agent_id WHERE created_by_agent_id IS NULL AND host_agent_id IS NOT NULL",
+    "UPDATE meetings SET host_agent_id = created_by_agent_id WHERE host_agent_id IS NULL AND created_by_agent_id IS NOT NULL",
+  ];
+
+  for (const stmt of alterStatements) {
+    try {
+      await pool.query(stmt);
+    } catch {
+      // Ignorar avisos de alter
+    }
+  }
+}
+
 async function initDb() {
   const schemaPath = path.join(__dirname, '..', 'schema.sql');
   if (!fs.existsSync(schemaPath)) return;
@@ -53,10 +85,12 @@ async function initDb() {
   try {
     const sql = fs.readFileSync(schemaPath, 'utf8');
     await pool.query(sql);
+    await ensureMeetingColumns();
     await applyMigrations();
     console.log('✓ Base de datos, migraciones e índices inicializados');
   } catch (err) {
     console.error('× Intento inicial en DB falló:', err.message);
+
 
     // Si la base de datos 'kasupport' no existe en PostgreSQL (código SQL Standard 3D000)
     if (err.code === '3D000') {

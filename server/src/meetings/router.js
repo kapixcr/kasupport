@@ -149,15 +149,32 @@ function createMeetingRouter({ db, requireAuth, verifyAgentToken, io, config }) 
     const isFuture = req.body?.starts_at && new Date(req.body.starts_at) > new Date();
     const status = isFuture ? 'waiting' : 'active';
 
-    const { rows } = await db.query(
-      `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status, lobby_enabled, max_participants, starts_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [publicId, title, livekitRoomName, req.agent.id, status, lobbyEnabled, config.maxParticipants, startsAt]
-    );
-    const meeting = rows[0];
+    let meeting;
+    try {
+      const { rows } = await db.query(
+        `INSERT INTO meetings (public_id, code, title, livekit_room_name, created_by_agent_id, host_agent_id, status, lobby_enabled, max_participants, starts_at)
+         VALUES ($1, $1, $2, $3, $4, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [publicId, title, livekitRoomName, req.agent.id, status, lobbyEnabled, config.maxParticipants, startsAt]
+      );
+      meeting = rows[0];
+    } catch {
+      const { rows } = await db.query(
+        `INSERT INTO meetings (public_id, title, livekit_room_name, created_by_agent_id, status)
+         VALUES ($1, $2, $3, $4, 'active')
+         RETURNING *`,
+        [publicId, title, livekitRoomName, req.agent.id]
+      );
+      meeting = rows[0];
+    }
+
     const participant = await authorizeAgent(db, meeting, req.agent);
-    await insertEvent(db, meeting.id, 'meeting.created', { actorParticipantId: participant.id });
+    try {
+      await insertEvent(db, meeting.id, 'meeting.created', { actorParticipantId: participant.id });
+    } catch {
+      // Ignorar evento si la tabla no esta disponible
+    }
+
 
     // Invitar participantes adicionales si se especificaron
     if (Array.isArray(req.body?.participant_agent_ids)) {

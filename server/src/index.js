@@ -1192,10 +1192,13 @@ io.on('connection', (socket) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  const payload = { error: 'error interno' };
-  if (!isProduction) payload.detail = err.message;
-  res.status(500).json(payload);
+  const payload = {
+    error: err.message || 'error interno',
+    detail: err.message || 'error interno',
+  };
+  res.status(err.status || 500).json(payload);
 });
+
 
 db.initDb().then(() => {
   server.listen(PORT, () => {
