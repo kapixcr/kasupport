@@ -207,10 +207,11 @@ export function Sidebar({
 
         </section>
 
-        {/* Soporte por departamento */}
+        {/* Soporte y Tickets (Web + Correo) */}
         <section>
-          <header className="px-4 text-xs uppercase tracking-wide text-zinc-500">
-            Soporte web
+          <header className="px-4 flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500">
+            <span>Tickets & Soporte</span>
+            <span className="text-[10px] text-zinc-400 normal-case">Web / Correo</span>
           </header>
           {departments.map((d) => {
             const convs = convsByDept(d.id);
@@ -218,17 +219,18 @@ export function Sidebar({
             return (
               <div key={d.id} className="mt-2">
                 <p className="px-4 text-xs font-semibold text-zinc-400 flex items-center justify-between">
-                  {d.name}
+                  <span>{d.name}</span>
                   {openCount > 0 && (
-                    <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5">
+                    <span className="bg-red-500 text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold">
                       {openCount}
                     </span>
                   )}
                 </p>
                 <ul>
                   {convs.length === 0 && (
-                    <li className="px-4 py-0.5 text-xs text-zinc-600 italic">sin chats</li>
+                    <li className="px-4 py-0.5 text-xs text-zinc-600 italic">sin tickets activos</li>
                   )}
+
                   {convs.map((cv) => {
                     const count = unreads[cv.channel_id] || 0;
                     return (

@@ -35,7 +35,8 @@ interface Props {
   onChanged: () => void; // refrescar canales/departamentos en la app
 }
 
-type Tab = "canales" | "departamentos" | "equipo" | "widget" | "apariencia" | "avisos";
+type Tab = "canales" | "departamentos" | "equipo" | "widget" | "correo" | "apariencia" | "avisos";
+
 
 const PRESETS: { name: string; theme: Theme }[] = [
   { name: "Slack oscuro", theme: { sidebar: "#19171d", accent: "#1164a3", bubble: "#4f46e5" } },
@@ -323,6 +324,11 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
   const [newAdminOnly, setNewAdminOnly] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [emailInfo, setEmailInfo] = useState<{
+    poller: { enabled: boolean; isPolling: boolean; user: string | null; host: string | null; lastPollTime: string | null; lastError: string | null; processedCount: number };
+    smtp: { enabled: boolean; from: string };
+  } | null>(null);
+  const [loadingEmail, setLoadingEmail] = useState(false);
   const isAdmin = me.role === "admin";
 
   const load = () => {
@@ -331,6 +337,18 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     api.agents().then(setAgents).catch(() => {});
   };
   useEffect(load, []);
+
+  const loadEmailStatus = () => {
+    setLoadingEmail(true);
+    api.emailStatus()
+      .then(setEmailInfo)
+      .catch(() => {})
+      .finally(() => setLoadingEmail(false));
+  };
+
+  useEffect(() => {
+    if (tab === "correo") loadEmailStatus();
+  }, [tab]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setError("");
@@ -365,9 +383,11 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     { id: "departamentos", label: "Dptos." },
     { id: "equipo", label: "Equipo" },
     { id: "widget", label: "Widget web" },
+    { id: "correo", label: "📧 Correo" },
     { id: "apariencia", label: "🎨" },
     { id: "avisos", label: "🔔" },
   ];
+
 
   return (
     <div
@@ -570,7 +590,112 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
               </div>
             </div>
           )}
+
+          {tab === "correo" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <div>
+                  <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    ✉️ Integración de Correo Google Workspace
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Buzón de soporte: <strong>soporte@kapix.co.cr</strong>
+                  </p>
+                </div>
+                <button
+                  onClick={loadEmailStatus}
+                  disabled={loadingEmail}
+                  className="text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-semibold"
+                >
+                  {loadingEmail ? "Comprobando…" : "🔄 Actualizar estado"}
+                </button>
+              </div>
+
+              {/* Estado IMAP */}
+              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${emailInfo?.poller?.enabled ? "bg-green-500 animate-pulse" : "bg-amber-500"}`} />
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                      Lector de Correos Entrantes (IMAP)
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    emailInfo?.poller?.enabled
+                      ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300"
+                      : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
+                  }`}>
+                    {emailInfo?.poller?.enabled ? "Activo" : "Pendiente de credenciales"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                  <div>
+                    <span className="text-zinc-400 block text-[10px]">Cuenta conectada:</span>
+                    <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                      {emailInfo?.poller?.user || "soporte@kapix.co.cr"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block text-[10px]">Servidor IMAP:</span>
+                    <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                      {emailInfo?.poller?.host || "imap.gmail.com:993"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block text-[10px]">Último sondeo:</span>
+                    <span>{emailInfo?.poller?.lastPollTime ? new Date(emailInfo.poller.lastPollTime).toLocaleTimeString() : "Iniciando…"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block text-[10px]">Correos procesados:</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{emailInfo?.poller?.processedCount ?? 0}</span>
+                  </div>
+                </div>
+
+                {emailInfo?.poller?.lastError && (
+                  <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 p-2 rounded-lg border border-red-200 dark:border-red-800">
+                    Último aviso: {emailInfo.poller.lastError}
+                  </p>
+                )}
+              </div>
+
+              {/* Estado SMTP */}
+              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${emailInfo?.smtp?.enabled ? "bg-green-500" : "bg-amber-500"}`} />
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                      Despachador de Respuestas (SMTP)
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                    emailInfo?.smtp?.enabled
+                      ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300"
+                      : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
+                  }`}>
+                    {emailInfo?.smtp?.enabled ? "Listo" : "Pendiente"}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Remitente de salida: <code className="font-mono text-zinc-700 dark:text-zinc-300">{emailInfo?.smtp?.from || "soporte@kapix.co.cr"}</code>
+                </p>
+              </div>
+
+              {/* Guía de variables para Coolify */}
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-2">
+                <p className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  ℹ️ ¿Cómo conectar el correo en Coolify?
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] leading-relaxed">
+                  <li>Genera una contraseña de aplicación de 16 letras en <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-indigo-600 underline">myaccount.google.com/apppasswords</a> para <code>soporte@kapix.co.cr</code>.</li>
+                  <li>Agrega en las variables de entorno de Coolify: <code>EMAIL_IMAP_USER=soporte@kapix.co.cr</code> y <code>EMAIL_IMAP_PASSWORD=tu_contraseña</code>.</li>
+                  <li>Haz clic en <strong>Redeploy</strong> en Coolify y el estado cambiará a <strong>Activo</strong>.</li>
+                </ol>
+              </div>
+            </div>
+          )}
           {tab === "avisos" && (
+
             <div className="space-y-4">
               <p className="text-sm text-zinc-600 dark:text-zinc-300">
                 Avisos cuando llegan chats nuevos del widget web o mensajes de visitantes.

@@ -278,6 +278,25 @@ export const api = {
       body: JSON.stringify({ agentId }),
     }),
 
+  // Estado del correo IMAP/SMTP
+  emailStatus: () =>
+    req<{
+      poller: {
+        enabled: boolean;
+        isPolling: boolean;
+        user: string | null;
+        host: string | null;
+        lastPollTime: string | null;
+        lastError: string | null;
+        processedCount: number;
+      };
+      smtp: {
+        enabled: boolean;
+        from: string;
+      };
+    }>("/api/email/status"),
+
+
   // Búsqueda global
   search: (q: string) => req<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`),
 
