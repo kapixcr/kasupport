@@ -14,6 +14,28 @@ import {
   type Theme,
 } from "@/lib/api";
 import { ReactionsBar } from "@/components/Reactions";
+import {
+  Hash,
+  Lock,
+  Megaphone,
+  Users,
+  Headphones,
+  Phone,
+  Paperclip,
+  Smile,
+  Sparkles,
+  Send,
+  User,
+  Mail,
+  Building2,
+  FileText,
+  Download,
+  CornerUpLeft,
+  MessageCircle,
+  X,
+  Plus,
+  Loader2,
+} from "lucide-react";
 
 /* ------------------ modal para gestionar miembros de canales privados ------------------ */
 
@@ -62,27 +84,35 @@ function ChannelMembersModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700 pb-3 mb-4">
-          <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            🔒 Miembros de #{channel.name}
-          </h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl font-bold">
-            ×
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3.5 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                Miembros de #{channel.name}
+              </h3>
+              <p className="text-xs text-zinc-400">Canal privado</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Formulario agregar miembro */}
         <div className="mb-5">
-          <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
-            Agregar usuario al canal privado
+          <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1.5">
+            Agregar usuario al canal
           </label>
           <div className="flex gap-2">
             <select
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
-              className="flex-1 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
+              className="flex-1 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-400"
             >
               <option value="">Selecciona un miembro del equipo...</option>
               {nonMembers.map((a) => (
@@ -94,8 +124,9 @@ function ChannelMembersModal({
             <button
               onClick={addMember}
               disabled={!selectedId || loading}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white font-semibold text-xs rounded-lg px-4 py-2 shrink-0"
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-semibold text-xs rounded-xl px-4 py-2 shrink-0 transition-all flex items-center gap-1.5 shadow-sm"
             >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
               Agregar
             </button>
           </div>
@@ -103,14 +134,17 @@ function ChannelMembersModal({
 
         {/* Lista de miembros actuales */}
         <div>
-          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
-            Miembros actuales ({members.length})
+          <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2 flex items-center justify-between">
+            <span>Miembros actuales</span>
+            <span className="bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+              {members.length}
+            </span>
           </p>
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800 max-h-56 overflow-y-auto pr-1">
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/60 max-h-56 overflow-y-auto pr-1">
             {members.map((m) => (
               <li key={m.id} className="py-2.5 flex items-center gap-3">
-                <span
-                  className="w-7 h-7 rounded text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden"
+                <div
+                  className="w-7 h-7 rounded-xl text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden shadow-xs"
                   style={{ background: m.color || "#4f46e5" }}
                 >
                   {m.avatar ? (
@@ -118,14 +152,14 @@ function ChannelMembersModal({
                   ) : (
                     m.name.charAt(0).toUpperCase()
                   )}
-                </span>
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{m.name}</p>
-                  <p className="text-xs text-zinc-400 truncate">{m.email}</p>
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{m.name}</p>
+                  <p className="text-[10px] text-zinc-400 truncate">{m.email}</p>
                 </div>
                 <button
                   onClick={() => removeMember(m.id)}
-                  className="text-xs text-red-500 hover:text-red-700 hover:underline px-2 py-1"
+                  className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5 py-1 rounded-lg transition-colors font-medium"
                 >
                   Quitar
                 </button>
@@ -137,6 +171,7 @@ function ChannelMembersModal({
     </div>
   );
 }
+
 interface Props {
   title: string;
   subtitle?: string;
@@ -183,7 +218,7 @@ function fmtSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const AVATAR_COLORS = ["#e01e5a", "#36c5f0", "#2eb67d", "#ecb22e", "#611f69", "#1264a3"];
+const AVATAR_COLORS = ["#4f46e5", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"];
 function colorFor(name: string) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -191,7 +226,6 @@ function colorFor(name: string) {
 }
 
 function stickerSrc(body: string) {
-  // Mensajes nuevos guardan la ruta completa; los viejos solo el nombre (.svg)
   return body.startsWith("/") ? `${API}${body}` : `${API}/stickers/${body}.svg`;
 }
 
@@ -203,63 +237,66 @@ const EMOJIS = [
 
 /* --------------------- render del contenido de un mensaje --------------------- */
 
-function AuthorAvatar({ m, size = "w-9 h-9", text = "text-sm" }: { m: Message; size?: string; text?: string }) {
+function AuthorAvatar({ m, size = "w-8 h-8", text = "text-xs" }: { m: Message; size?: string; text?: string }) {
   if (m.author_avatar) {
     return (
       <img
         src={m.author_avatar}
         alt={m.author_name}
-        className={`${size} rounded shrink-0 object-cover`}
+        className={`${size} rounded-xl shrink-0 object-cover shadow-xs`}
       />
     );
   }
   return (
-    <span
-      className={`${size} rounded shrink-0 text-white flex items-center justify-center ${text} font-bold`}
+    <div
+      className={`${size} rounded-xl shrink-0 text-white flex items-center justify-center ${text} font-bold shadow-xs`}
       style={{ background: colorFor(m.author_name) }}
     >
       {m.author_name.charAt(0).toUpperCase()}
-    </span>
+    </div>
   );
 }
 
 function MessageContent({ m }: { m: Message }) {
   if (m.kind === "sticker") {
-    return <img src={stickerSrc(m.body)} alt="sticker" className="w-24 h-24" />;
+    return <img src={stickerSrc(m.body)} alt="sticker" className="w-24 h-24 hover:scale-105 transition-transform" />;
   }
   if (m.kind === "image") {
     const f = parseFileBody(m.body);
-    if (!f) return <p className="text-sm">[imagen]</p>;
+    if (!f) return <p className="text-xs">[imagen]</p>;
     return (
-      <a href={`${API}${f.url}`} target="_blank" rel="noreferrer">
+      <a href={`${API}${f.url}`} target="_blank" rel="noreferrer" className="block my-1">
         <img
           src={`${API}${f.url}`}
           alt={f.name}
-          className="max-w-xs max-h-64 rounded-lg border border-black/10"
+          className="max-w-sm max-h-72 rounded-2xl border border-black/10 dark:border-white/10 shadow-sm object-cover hover:opacity-95 transition-opacity"
         />
       </a>
     );
   }
   if (m.kind === "file") {
     const f = parseFileBody(m.body);
-    if (!f) return <p className="text-sm">[archivo]</p>;
+    if (!f) return <p className="text-xs">[archivo]</p>;
     return (
       <a
         href={`${API}${f.url}`}
         download={f.name}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center gap-2 bg-black/5 rounded-lg px-3 py-2 text-sm hover:bg-black/10"
+        className="inline-flex items-center gap-3 bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/80 rounded-2xl p-3 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-xs my-1 group max-w-sm"
       >
-        <span className="text-xl">📄</span>
-        <span>
-          <span className="block font-medium break-all">{f.name}</span>
-          <span className="block text-xs opacity-70">{fmtSize(f.size)} · descargar</span>
-        </span>
+        <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+          <FileText className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">{f.name}</p>
+          <p className="text-[10px] text-zinc-400">{fmtSize(f.size)}</p>
+        </div>
+        <Download className="w-4 h-4 text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 shrink-0 transition-colors" />
       </a>
     );
   }
-  return <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>;
+  return <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>;
 }
 
 /* --------------------------------- componente --------------------------------- */
@@ -306,7 +343,7 @@ export function ChatArea({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, channelId]);
 
-  // Resaltar un mensaje venido de la búsqueda (scroll + destello amarillo)
+  // Resaltar un mensaje venido de la búsqueda (scroll + destello)
   useEffect(() => {
     if (!highlightId) return;
     const el = document.getElementById(`msg-${highlightId}`);
@@ -315,7 +352,7 @@ export function ChatArea({
     const prevBg = el.style.background;
     const prevTransition = el.style.transition;
     el.style.transition = "background 0.4s";
-    el.style.background = "rgba(250, 204, 21, 0.28)";
+    el.style.background = "rgba(99, 102, 241, 0.18)";
     const t = setTimeout(() => {
       el.style.background = prevBg;
       setTimeout(() => { el.style.transition = prevTransition; }, 400);
@@ -407,120 +444,166 @@ export function ChatArea({
         : `${othersTyping.slice(0, -1).join(", ")} y ${othersTyping[othersTyping.length - 1]} están escribiendo…`;
 
   return (
-    <main className="flex-1 flex flex-col h-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-      {/* Header */}
-      <header className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h2 className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              {channel?.is_private && <span title="Canal privado">🔒</span>}
-              {channel?.post_policy === "admin" && <span title="Solo admins escriben">📢</span>}
-              {title}
-            </h2>
-            {subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>}
+    <main className="flex-1 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-w-0">
+      {/* Header Minimalista */}
+      <header className="px-6 py-3.5 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md flex items-center justify-between z-10">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {channel?.is_private ? (
+                  <Lock className="w-4 h-4 text-amber-500" />
+                ) : channel?.post_policy === "admin" ? (
+                  <Megaphone className="w-4 h-4 text-indigo-500" />
+                ) : dmPeer ? (
+                  <User className="w-4 h-4 text-indigo-500" />
+                ) : conversation ? (
+                  <Mail className="w-4 h-4 text-emerald-500" />
+                ) : (
+                  <Hash className="w-4 h-4 text-zinc-400" />
+                )}
+              </span>
+              <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                {title}
+              </h2>
+            </div>
+            {subtitle && <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">{subtitle}</p>}
           </div>
 
           {channel?.is_private && (
             <button
               onClick={() => setShowMembersModal(true)}
-              className="flex items-center gap-1 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors"
-              title="Gestionar miembros de este canal privado"
+              className="flex items-center gap-1.5 text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 px-3 py-1.5 rounded-xl border border-zinc-200/60 dark:border-zinc-700/60 transition-all shrink-0"
+              title="Gestionar miembros"
             >
-              👥 Miembros
+              <Users className="w-3.5 h-3.5" />
+              <span>Miembros</span>
             </button>
           )}
         </div>
 
-        {onToggleHuddle && (
-          <button
-            onClick={onToggleHuddle}
-            disabled={huddleActive}
-            title={huddleActive ? "Ya estás en el huddle" : huddleCount > 0 ? `Unirse al huddle (${huddleCount})` : "Iniciar huddle"}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-              huddleActive
-                ? "bg-green-600 text-white cursor-default"
-                : huddleCount > 0
-                  ? "bg-green-600/15 text-green-600 dark:text-green-400 hover:bg-green-600/25 border border-green-600/40"
-                  : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-600"
-            }`}
-          >
-            🎧 {huddleActive ? "En huddle" : huddleCount > 0 ? `Huddle · ${huddleCount}` : "Huddle"}
-          </button>
-        )}
-        {dmPeer && onStartCall && (
-          <button
-            onClick={() => onStartCall(dmPeer)}
-            title={`Llamar a ${dmPeer.name}`}
-            className="text-lg px-2.5 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            📞
-          </button>
-        )}
-        {conversation && (
-          <div className="flex items-center gap-2 text-xs">
-            <select
-              value={conversation.status}
-              onChange={(e) => onStatusChange(conversation.id, e.target.value)}
-              className="border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-xs bg-white dark:bg-zinc-800 dark:text-zinc-100"
+        <div className="flex items-center gap-2">
+          {onToggleHuddle && (
+            <button
+              onClick={onToggleHuddle}
+              disabled={huddleActive}
+              title={huddleActive ? "En huddle" : huddleCount > 0 ? `Unirse (${huddleCount})` : "Iniciar huddle"}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl transition-all ${
+                huddleActive
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : huddleCount > 0
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200/60 dark:border-zinc-700/60"
+              }`}
             >
-              <option value="open">Abierto</option>
-              <option value="pending">Pendiente</option>
-              <option value="closed">Cerrado</option>
-            </select>
-          </div>
-        )}
+              <Headphones className="w-3.5 h-3.5" />
+              <span>{huddleActive ? "En huddle" : huddleCount > 0 ? `Huddle (${huddleCount})` : "Huddle"}</span>
+            </button>
+          )}
+
+          {dmPeer && onStartCall && (
+            <button
+              onClick={() => onStartCall(dmPeer)}
+              title={`Llamar a ${dmPeer.name}`}
+              className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-zinc-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-zinc-200/60 dark:border-zinc-700/60 transition-all"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+          )}
+
+          {conversation && (
+            <div className="flex items-center gap-1.5">
+              <select
+                value={conversation.status}
+                onChange={(e) => onStatusChange(conversation.id, e.target.value)}
+                className="border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 shadow-xs outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                <option value="open">🟢 Abierto</option>
+                <option value="pending">🟡 Pendiente</option>
+                <option value="closed">⚪ Cerrado</option>
+              </select>
+            </div>
+          )}
+        </div>
       </header>
 
-      {/* Ficha del visitante */}
+      {/* Ficha del visitante (soporte) */}
       {conversation && (
-        <div className="px-5 py-2 bg-indigo-50 dark:bg-indigo-950 border-b border-indigo-100 dark:border-indigo-900 text-xs text-indigo-900 dark:text-indigo-200 flex gap-6">
-          <span>👤 {conversation.visitor_name}</span>
-          {conversation.visitor_email && <span>✉️ {conversation.visitor_email}</span>}
-          {conversation.visitor_phone && <span>📞 {conversation.visitor_phone}</span>}
-          {conversation.department_name && <span>🏢 {conversation.department_name}</span>}
+        <div className="px-6 py-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 border-b border-indigo-100/60 dark:border-indigo-900/40 text-xs text-zinc-700 dark:text-zinc-300 flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-1.5 font-semibold text-indigo-950 dark:text-indigo-200">
+            <User className="w-3.5 h-3.5 text-indigo-500" />
+            <span>{conversation.visitor_name}</span>
+          </div>
+          {conversation.visitor_email && (
+            <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+              <Mail className="w-3.5 h-3.5" />
+              <span>{conversation.visitor_email}</span>
+            </div>
+          )}
+          {conversation.visitor_phone && (
+            <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+              <Phone className="w-3.5 h-3.5" />
+              <span>{conversation.visitor_phone}</span>
+            </div>
+          )}
+          {conversation.department_name && (
+            <div className="flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400 ml-auto">
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="bg-indigo-100/80 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-medium px-2 py-0.5 rounded-md text-[10px]">
+                {conversation.department_name}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Mensajes */}
+      {/* Mensajes Feed */}
       <div
-        className={`flex-1 overflow-y-auto px-5 py-4 ${conversation ? "bg-zinc-100 dark:bg-zinc-950" : ""}`}
+        className={`flex-1 overflow-y-auto px-6 py-5 space-y-4 ${conversation ? "bg-zinc-100/40 dark:bg-zinc-950" : ""}`}
         style={bgImage ? {
-          backgroundImage: `linear-gradient(${darkMode ? "rgba(9,9,11,0.82), rgba(9,9,11,0.82)" : "rgba(255,255,255,0.86), rgba(255,255,255,0.86)"}), url(${bgImage})`,
+          backgroundImage: `linear-gradient(${darkMode ? "rgba(9,9,11,0.85), rgba(9,9,11,0.85)" : "rgba(255,255,255,0.90), rgba(255,255,255,0.90)"}), url(${bgImage})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         } : undefined}
         onClick={() => setPicker("none")}
       >
         {messages.length === 0 && (
-          <p className="text-sm text-zinc-400 italic">
-            No hay mensajes todavía. ¡Empieza la conversación!
-          </p>
+          <div className="h-full flex flex-col items-center justify-center text-zinc-400 text-center py-12">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center mb-3">
+              <Sparkles className="w-6 h-6 text-zinc-400" />
+            </div>
+            <p className="text-xs font-medium text-zinc-500">No hay mensajes todavía.</p>
+            <p className="text-[11px] text-zinc-400">¡Escribe el primer mensaje para empezar!</p>
+          </div>
         )}
+
         {messages.map((m, i) => {
           const day = fmtDay(m.created_at);
           const showDay = day !== lastDay;
           lastDay = day;
           const prev = messages[i - 1];
 
-          /* ---- Modo burbuja (conversaciones de soporte) ---- */
+          /* ---- Modo burbuja (soporte) ---- */
           if (conversation) {
             const isAgent = m.author_type === "agent";
             return (
-              <div key={m.id} id={`msg-${m.id}`} className="group rounded-lg">
+              <div key={m.id} id={`msg-${m.id}`} className="group relative">
                 {showDay && (
-                  <div className="flex items-center gap-3 my-4">
-                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-                    <span className="text-xs font-semibold text-zinc-500">{day}</span>
-                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+                  <div className="flex items-center gap-3 my-5">
+                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 dark:bg-zinc-900 px-3 py-1 rounded-full border border-zinc-200/60 dark:border-zinc-800">
+                      {day}
+                    </span>
+                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
                   </div>
                 )}
-                <div className={`flex items-end gap-2 mt-2 ${isAgent ? "justify-end" : "justify-start"}`}>
-                  {!isAgent && <AuthorAvatar m={m} size="w-7 h-7" text="text-xs" />}
+                <div className={`flex items-end gap-2.5 mt-2 ${isAgent ? "justify-end" : "justify-start"}`}>
+                  {!isAgent && <AuthorAvatar m={m} size="w-7 h-7" text="text-[10px]" />}
                   <div
-                    className={`max-w-[70%] rounded-2xl px-3.5 py-2 ${
+                    className={`max-w-[70%] rounded-2xl px-4 py-2.5 transition-all ${
                       isAgent
-                        ? "text-white rounded-br-md"
-                        : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-100 rounded-bl-md shadow-sm"
+                        ? "text-white rounded-br-xs shadow-sm"
+                        : "bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-bl-xs shadow-xs"
                     }`}
                     style={isAgent ? {
                       background: theme.bubble,
@@ -529,34 +612,36 @@ export function ChatArea({
                   >
                     <MessageContent m={m} />
                     <p
-                      className={`text-[10px] mt-1 ${
-                        isAgent ? "text-white/70 text-right" : "text-zinc-400"
+                      className={`text-[10px] mt-1.5 ${
+                        isAgent ? "text-white/75 text-right" : "text-zinc-400"
                       }`}
                     >
                       {m.author_name} · {fmtTime(m.created_at)}
                     </p>
                   </div>
-                  {isAgent && <AuthorAvatar m={m} size="w-7 h-7" text="text-xs" />}
+                  {isAgent && <AuthorAvatar m={m} size="w-7 h-7" text="text-[10px]" />}
                 </div>
-                {/* responder / ver hilo (modo burbuja) */}
-                <div className={`flex ${isAgent ? "justify-end" : "justify-start"} mt-0.5`}>
+
+                <div className={`flex ${isAgent ? "justify-end" : "justify-start"} mt-1`}>
                   <div className="flex items-center gap-2">
                     <ReactionsBar m={m} myId={myId} onUpdate={onReactionUpdate} />
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => onOpenThread(m)}
-                      className="text-[11px] text-indigo-500 dark:text-indigo-400 hover:underline"
-                    >
-                      ↩ Responder
-                    </button>
-                    {Number(m.reply_count || 0) > 0 && (
                       <button
                         onClick={() => onOpenThread(m)}
-                        className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                       >
-                        🧵 {m.reply_count} respuesta{Number(m.reply_count) === 1 ? "" : "s"}
+                        <CornerUpLeft className="w-3 h-3" />
+                        Responder
                       </button>
-                    )}
+                      {Number(m.reply_count || 0) > 0 && (
+                        <button
+                          onClick={() => onOpenThread(m)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          {m.reply_count}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -564,50 +649,58 @@ export function ChatArea({
             );
           }
 
-          /* ---- Modo Slack (canales internos) ---- */
+          /* ---- Modo Slack (canales internos y DMs) ---- */
           const grouped =
             !showDay && prev &&
             prev.author_name === m.author_name &&
             prev.author_type === m.author_type &&
             new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 5 * 60 * 1000;
+
           return (
-            <div key={m.id} id={`msg-${m.id}`} className="group rounded-lg">
+            <div key={m.id} id={`msg-${m.id}`} className="group relative rounded-2xl p-1.5 -mx-1.5 hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60 transition-colors">
               {showDay && (
-                <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-                  <span className="text-xs font-semibold text-zinc-500">{day}</span>
-                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 dark:bg-zinc-900 px-3 py-1 rounded-full border border-zinc-200/60 dark:border-zinc-800">
+                    {day}
+                  </span>
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
                 </div>
               )}
-              <div className={`flex gap-3 ${grouped ? "mt-0.5" : "mt-3"}`}>
+
+              <div className="flex gap-3">
                 {grouped ? (
-                  <span className="w-9 shrink-0" />
+                  <div className="w-8 shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] text-zinc-400">
+                    {fmtTime(m.created_at)}
+                  </div>
                 ) : (
                   <AuthorAvatar m={m} />
                 )}
                 <div className="min-w-0 flex-1">
                   {!grouped && (
-                    <p className="text-sm">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100">{m.author_name}</span>
-                      <span className="ml-2 text-xs text-zinc-400">{fmtTime(m.created_at)}</span>
-                    </p>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">{m.author_name}</span>
+                      <span className="text-[10px] text-zinc-400 font-medium">{fmtTime(m.created_at)}</span>
+                    </div>
                   )}
                   <MessageContent m={m} />
                   <ReactionsBar m={m} myId={myId} onUpdate={onReactionUpdate} />
-                  {/* responder / ver hilo (modo Slack) */}
-                  <div className={`flex items-center gap-3 mt-0.5 ${Number(m.reply_count || 0) > 0 ? "" : "opacity-0 group-hover:opacity-100"} transition-opacity`}>
+
+                  <div className={`flex items-center gap-3 mt-1.5 ${Number(m.reply_count || 0) > 0 ? "" : "opacity-0 group-hover:opacity-100"} transition-opacity`}>
                     <button
                       onClick={() => onOpenThread(m)}
-                      className="text-[11px] text-indigo-500 dark:text-indigo-400 hover:underline"
+                      className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 font-medium"
                     >
-                      ↩ Responder en hilo
+                      <CornerUpLeft className="w-3 h-3" />
+                      Responder en hilo
                     </button>
                     {Number(m.reply_count || 0) > 0 && (
                       <button
                         onClick={() => onOpenThread(m)}
-                        className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800/80"
                       >
-                        🧵 {m.reply_count} respuesta{Number(m.reply_count) === 1 ? "" : "s"}
+                        <MessageCircle className="w-3 h-3" />
+                        {m.reply_count} respuesta{Number(m.reply_count) === 1 ? "" : "s"}
                       </button>
                     )}
                   </div>
@@ -619,25 +712,36 @@ export function ChatArea({
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer */}
-      <div className="px-5 pb-5 relative">
+      {/* Composer Minimalista */}
+      <div className="px-6 pb-5 pt-1 relative">
         {/* Indicador de "está escribiendo..." */}
-        <p className={`text-xs italic text-zinc-500 dark:text-zinc-400 h-5 ${typingText ? "" : "invisible"}`}>
+        <p className={`text-[11px] text-zinc-400 dark:text-zinc-500 italic h-4 mb-1 flex items-center gap-1.5 ${typingText ? "" : "invisible"}`}>
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
           {typingText || "·"}
         </p>
-        {/* Pickers */}
+
+        {/* Pickers flotantes */}
         {picker !== "none" && canPost && (
           <div
-            className="absolute bottom-full left-5 mb-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl p-3 z-10 w-80"
+            className="absolute bottom-full left-6 mb-2 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-3.5 z-30 w-80 animate-in fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-100 dark:border-zinc-800">
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                {picker === "emoji" ? "Emojis" : "Stickers"}
+              </span>
+              <button onClick={() => setPicker("none")} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             {picker === "emoji" ? (
-              <div className="grid grid-cols-8 gap-1 max-h-44 overflow-y-auto">
+              <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1">
                 {EMOJIS.map((e) => (
                   <button
                     key={e}
                     onClick={() => insertEmoji(e)}
-                    className="text-xl hover:bg-zinc-100 rounded p-0.5"
+                    className="text-lg hover:scale-125 transition-transform rounded-lg p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   >
                     {e}
                   </button>
@@ -645,15 +749,15 @@ export function ChatArea({
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-4 gap-2 max-h-56 overflow-y-auto">
+                <div className="grid grid-cols-4 gap-2 max-h-56 overflow-y-auto pr-1">
                   {stickers.map((s) => (
                     <button
                       key={s.url}
                       onClick={() => sendSticker(s)}
-                      className="hover:bg-zinc-100 rounded-lg p-1"
+                      className="hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl p-1.5 transition-all group"
                       title={s.name}
                     >
-                      <img src={`${API}${s.url}`} alt={s.name} className="w-14 h-14 mx-auto object-contain" />
+                      <img src={`${API}${s.url}`} alt={s.name} className="w-12 h-12 mx-auto object-contain group-hover:scale-110 transition-transform" />
                     </button>
                   ))}
                 </div>
@@ -672,7 +776,7 @@ export function ChatArea({
                     />
                     <button
                       onClick={() => stickerFileRef.current?.click()}
-                      className="mt-2 w-full text-xs text-indigo-600 border border-dashed border-indigo-300 rounded-lg py-1.5 hover:bg-indigo-50"
+                      className="mt-2.5 w-full text-xs text-indigo-600 dark:text-indigo-400 border border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all font-medium"
                     >
                       + Subir sticker nuevo
                     </button>
@@ -684,7 +788,7 @@ export function ChatArea({
         )}
 
         {canPost ? (
-          <div className="border border-zinc-300 dark:border-zinc-600 rounded-lg focus-within:ring-2 focus-within:ring-indigo-300">
+          <div className="border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500/50 transition-all">
             <input
               ref={fileRef}
               type="file"
@@ -709,46 +813,54 @@ export function ChatArea({
                   send();
                 }
               }}
-              placeholder={`Mensaje en ${title} (pega imágenes con Ctrl/Cmd+V)`}
+              placeholder={`Escribe un mensaje en ${title}…`}
               rows={2}
-              className="w-full px-3 py-2 text-sm outline-none rounded-lg resize-none bg-white dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+              className="w-full px-4 pt-3 pb-1 text-xs outline-none rounded-2xl resize-none bg-transparent dark:text-zinc-100 placeholder:text-zinc-400"
             />
-            <div className="flex items-center px-2 pb-2">
-              <button
-                onClick={() => fileRef.current?.click()}
-                title="Adjuntar archivo"
-                disabled={uploading}
-                className="text-lg px-1.5 py-0.5 rounded hover:bg-zinc-100"
-              >
-                📎
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setPicker(picker === "emoji" ? "none" : "emoji"); }}
-                title="Emojis"
-                className="text-lg px-1.5 py-0.5 rounded hover:bg-zinc-100"
-              >
-                😊
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setPicker(picker === "sticker" ? "none" : "sticker"); }}
-                title="Stickers"
-                className="text-lg px-1.5 py-0.5 rounded hover:bg-zinc-100"
-              >
-                🧩
-              </button>
-              {uploading && <span className="text-xs text-zinc-400 ml-2">Subiendo...</span>}
+            <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  title="Adjuntar archivo o imagen"
+                  disabled={uploading}
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPicker(picker === "emoji" ? "none" : "emoji"); }}
+                  title="Insertar emoji"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                >
+                  <Smile className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPicker(picker === "sticker" ? "none" : "sticker"); }}
+                  title="Insertar sticker"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                >
+                  <Sparkles className="w-4 h-4" />
+                </button>
+                {uploading && (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-indigo-500 font-medium ml-2">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Subiendo…
+                  </span>
+                )}
+              </div>
+
               <button
                 onClick={send}
                 disabled={!draft.trim() || uploading}
-                className="ml-auto disabled:bg-zinc-300 text-white text-sm font-semibold rounded px-3 py-1"
-                style={draft.trim() && !uploading ? { background: theme.accent } : undefined}
+                className="disabled:opacity-30 text-white text-xs font-semibold rounded-xl px-3.5 py-1.5 transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                style={draft.trim() && !uploading ? { background: theme.accent } : { background: "#4f46e5" }}
               >
-                Enviar
+                <span>Enviar</span>
+                <Send className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         ) : (
-          <div className="border border-zinc-200 rounded-lg bg-zinc-50 px-4 py-3 text-sm text-zinc-500 text-center">
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-100/60 dark:bg-zinc-900/60 px-4 py-3 text-xs text-zinc-500 text-center">
             {postBlockReason || "No puedes escribir en este canal"}
           </div>
         )}

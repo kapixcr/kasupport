@@ -142,13 +142,31 @@ class EmailPoller {
       return;
     }
 
-    // Evitar procesar correos automáticos propios o bucles
+    // Evitar procesar correos enviados por nosotros mismos (cuenta principal o buzón de soporte)
     const selfEmail = (this.config.imap.user || '').toLowerCase();
-    if (senderEmail === selfEmail) {
+    const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase();
+    if (senderEmail === selfEmail || senderEmail === supportEmail || senderEmail.includes('soporte@kapix.co.cr')) {
       return;
     }
 
+    // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), ignorar correos personales que no van dirigidos al buzón de soporte
+    const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
+    if (filterTo) {
+      const toAddresses = [
+        ...(parsed.to?.value || []).map((t) => (t.address || '').toLowerCase()),
+        ...(parsed.cc?.value || []).map((c) => (c.address || '').toLowerCase()),
+        String(parsed.headers?.get('delivered-to') || '').toLowerCase(),
+        String(parsed.headers?.get('x-original-to') || '').toLowerCase(),
+      ];
+      const isTargeted = toAddresses.some((addr) => addr.includes(filterTo));
+      if (!isTargeted) {
+        console.log(`ℹ Correo ignorado (no está dirigido a ${filterTo}): "${subject}" de ${senderEmail}`);
+        return;
+      }
+    }
+
     console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
+
 
     // 1. Detectar si es respuesta a un ticket existente
     const existingConversation = await this.findExistingConversation({

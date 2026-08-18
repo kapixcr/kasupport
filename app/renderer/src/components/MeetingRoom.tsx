@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API, socket, type Agent, type Meeting } from "@/lib/api";
 import { playDing } from "@/lib/notify";
+import {
+  Mic,
+  MicOff,
+  Video as VideoIcon,
+  VideoOff,
+  ScreenShare,
+  Hand,
+  PhoneOff,
+  LogOut,
+  Users,
+  MessageSquare,
+  Copy,
+  Check,
+  Expand,
+  Shrink,
+  Send,
+  X,
+} from "lucide-react";
 
 export interface MeetingParticipant {
   id: string | number;
@@ -59,8 +77,8 @@ function MeetingVideo({
   return (
     <div
       onClick={onClick}
-      className={`relative bg-black rounded-2xl overflow-hidden group cursor-pointer border transition-all h-full w-full flex items-center justify-center ${
-        audioActive ? "ring-4 ring-green-400 border-green-500" : isPinned ? "ring-2 ring-indigo-500 border-indigo-500" : "border-white/10 hover:border-indigo-400/50"
+      className={`relative bg-black rounded-3xl overflow-hidden group cursor-pointer border transition-all h-full w-full flex items-center justify-center ${
+        audioActive ? "ring-4 ring-emerald-400 border-emerald-500" : isPinned ? "ring-2 ring-indigo-500 border-indigo-500" : "border-white/10 hover:border-indigo-400/50"
       }`}
     >
       <video
@@ -76,22 +94,22 @@ function MeetingVideo({
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
       {/* Etiqueta del participante */}
-      <span className="absolute bottom-3 left-3 text-xs font-semibold text-white bg-black/70 backdrop-blur rounded-lg px-2.5 py-1 border border-white/10 flex items-center gap-2 z-10 shadow-lg">
-        {audioActive && <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />}
+      <span className="absolute bottom-3 left-3 text-xs font-semibold text-white bg-black/70 backdrop-blur-md rounded-xl px-3 py-1 border border-white/10 flex items-center gap-2 z-10 shadow-lg">
+        {audioActive && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
         {label}
       </span>
 
       {/* Insignia de Mano Levantada ✋ */}
       {handRaised && (
-        <div className="absolute top-3 left-3 bg-amber-500 text-white rounded-xl px-2.5 py-1 text-sm font-bold shadow-xl animate-bounce z-20 flex items-center gap-1">
-          <span>✋</span>
-          <span className="text-xs">Mano levantada</span>
+        <div className="absolute top-3 left-3 bg-amber-500 text-white rounded-2xl px-3 py-1 text-xs font-bold shadow-xl animate-bounce z-20 flex items-center gap-1.5">
+          <Hand className="w-3.5 h-3.5" />
+          <span>Mano levantada</span>
         </div>
       )}
 
       {onClick && (
-        <span className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-indigo-600 text-white rounded-lg px-2.5 py-1 font-medium shadow-lg z-10">
-          {isPinned ? "🔍 Desenfocar" : "🔍 Enfocar video"}
+        <span className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-indigo-600 text-white rounded-xl px-2.5 py-1 font-medium shadow-lg z-10">
+          {isPinned ? "Vista normal" : "Enfocar video"}
         </span>
       )}
     </div>
@@ -478,15 +496,17 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={copyMeetingLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-xl border border-white/10 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-2xl border border-white/10 transition-colors"
           >
-            {copied ? "✅ Enlace Copiado" : "🔗 Copiar Enlace"}
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? "Copiado" : "Copiar Enlace"}</span>
           </button>
           <button
             onClick={toggleFullscreen}
-            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-xl border border-white/10 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-2xl border border-white/10 transition-colors"
           >
-            {isFullscreen ? "↙ Salir Pantalla Completa" : "⛶ Pantalla Completa"}
+            {isFullscreen ? <Shrink className="w-3.5 h-3.5" /> : <Expand className="w-3.5 h-3.5" />}
+            <span>{isFullscreen ? "Reducir" : "Pantalla Completa"}</span>
           </button>
         </div>
       </header>
@@ -576,26 +596,28 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
         {drawerTab !== "none" && (
           <aside className="w-80 border-l border-white/10 bg-zinc-900/95 backdrop-blur flex flex-col shrink-0">
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <button
                   onClick={() => setDrawerTab("people")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                     drawerTab === "people" ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  👥 Personas ({participants.length})
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Personas ({participants.length})</span>
                 </button>
                 <button
                   onClick={() => setDrawerTab("chat")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
                     drawerTab === "chat" ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  💬 Chat
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Chat</span>
                 </button>
               </div>
-              <button onClick={() => setDrawerTab("none")} className="text-zinc-400 hover:text-white text-lg font-bold">
-                ×
+              <button onClick={() => setDrawerTab("none")} className="p-1 rounded-lg text-zinc-400 hover:text-white">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -604,25 +626,25 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
               <div className="flex-1 p-4 overflow-y-auto divide-y divide-white/5">
                 <p className="text-xs font-semibold text-zinc-400 mb-3">En la reunión ({participants.length})</p>
                 <div className="py-2 flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">
+                  <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">
                     {myDisplayName.charAt(0).toUpperCase()}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{myDisplayName} (tú)</p>
-                    <p className="text-xs text-zinc-500">{me?.role === "admin" ? "Anfitrión" : "Participante"}</p>
+                    <p className="text-xs font-semibold text-white truncate">{myDisplayName} (tú)</p>
+                    <p className="text-[10px] text-zinc-500">{me?.role === "admin" ? "Anfitrión" : "Participante"}</p>
                   </div>
-                  {handRaised && <span>✋</span>}
+                  {handRaised && <Hand className="w-3.5 h-3.5 text-amber-400" />}
                 </div>
                 {others.map((p) => (
                   <div key={p.id} className="py-2.5 flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-full bg-zinc-700 text-white font-bold flex items-center justify-center text-xs">
+                    <span className="w-8 h-8 rounded-xl bg-zinc-800 text-white font-bold flex items-center justify-center text-xs">
                       {p.name.charAt(0).toUpperCase()}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{p.name}</p>
-                      <p className="text-xs text-zinc-500">{p.isGuest ? "Invitado" : "Agente"}</p>
+                      <p className="text-xs font-semibold text-white truncate">{p.name}</p>
+                      <p className="text-[10px] text-zinc-500">{p.isGuest ? "Invitado" : "Agente"}</p>
                     </div>
-                    {p.handRaised && <span>✋</span>}
+                    {p.handRaised && <Hand className="w-3.5 h-3.5 text-amber-400" />}
                   </div>
                 ))}
               </div>
@@ -631,14 +653,14 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
             {/* Pestaña de Chat */}
             {drawerTab === "chat" && (
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 p-4 overflow-y-auto space-y-3">
+                <div className="flex-1 p-4 overflow-y-auto space-y-2.5">
                   {chatMessages.length === 0 && (
                     <p className="text-xs text-zinc-500 text-center italic mt-4">
                       Los mensajes enviados solo son visibles durante esta reunión.
                     </p>
                   )}
                   {chatMessages.map((msg) => (
-                    <div key={msg.id} className="bg-zinc-800/60 rounded-xl p-3 border border-white/5">
+                    <div key={msg.id} className="bg-zinc-850/80 rounded-2xl p-3 border border-white/5">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-indigo-400">{msg.senderName}</span>
                         <span className="text-[10px] text-zinc-500">{msg.time}</span>
@@ -652,11 +674,11 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
                   <input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Enviar un mensaje a todos..."
+                    placeholder="Enviar mensaje…"
                     className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500"
                   />
-                  <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-xs font-bold">
-                    Enviar
+                  <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center">
+                    <Send className="w-3.5 h-3.5" />
                   </button>
                 </form>
               </div>
@@ -670,84 +692,86 @@ export function MeetingRoom({ me, meetingCode, onLeave }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDrawerTab(drawerTab === "people" ? "none" : "people")}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            className={`px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-2 transition-all ${
               drawerTab === "people" ? "bg-indigo-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
             }`}
           >
-            👥 <span>{participants.length}</span>
+            <Users className="w-4 h-4" />
+            <span>{participants.length}</span>
           </button>
           <button
             onClick={() => setDrawerTab(drawerTab === "chat" ? "none" : "chat")}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            className={`px-3.5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-2 transition-all ${
               drawerTab === "chat" ? "bg-indigo-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
             }`}
           >
-            💬 <span>Chat</span>
+            <MessageSquare className="w-4 h-4" />
+            <span>Chat</span>
           </button>
         </div>
 
         {/* Botones de Acción Principal */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={toggleMic}
             title={micOn ? "Silenciar micrófono" : "Activar micrófono"}
-            className={`w-12 h-12 rounded-2xl text-xl transition-all shadow-lg ${
-              micOn ? "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10" : "bg-red-600 text-white"
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
+              micOn ? "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10" : "bg-rose-600 text-white"
             }`}
           >
-            {micOn ? "🎙️" : "🔇"}
+            {micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
           </button>
 
           <button
             onClick={toggleCam}
             title={camOn ? "Apagar cámara" : "Encender cámara"}
-            className={`w-12 h-12 rounded-2xl text-xl transition-all shadow-lg ${
-              camOn || sharing ? "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10" : "bg-red-600 text-white"
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
+              camOn || sharing ? "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10" : "bg-rose-600 text-white"
             }`}
           >
-            {camOn || sharing ? "📷" : "🚫"}
+            {camOn || sharing ? <VideoIcon className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
           </button>
 
           <button
             onClick={shareScreen}
             title={sharing ? "Dejar de compartir" : "Compartir pantalla"}
-            className={`w-12 h-12 rounded-2xl text-xl transition-all shadow-lg ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
               sharing ? "bg-indigo-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10"
             }`}
           >
-            🖥️
+            <ScreenShare className="w-5 h-5" />
           </button>
 
           <button
             onClick={toggleHand}
             title={handRaised ? "Bajar la mano" : "Levantar la mano"}
-            className={`w-12 h-12 rounded-2xl text-xl transition-all shadow-lg ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
               handRaised ? "bg-amber-500 text-white ring-4 ring-amber-500/30" : "bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10"
             }`}
           >
-            ✋
+            <Hand className="w-5 h-5" />
           </button>
 
           <button
             onClick={leaveMeeting}
             title="Salir de la reunión"
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 rounded-2xl px-4 h-11 sm:h-12 font-bold text-xs shadow-lg transition-all flex items-center gap-1.5"
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/10 rounded-2xl px-4 h-12 font-semibold text-xs transition-all flex items-center gap-2 active:scale-95"
           >
+            <LogOut className="w-4 h-4" />
             <span>Salir</span>
-            <span>🚪</span>
           </button>
 
           <button
             onClick={endMeeting}
             title="Finalizar y cancelar reunión para todos los participantes"
-            className="bg-red-600 hover:bg-red-500 text-white rounded-2xl px-4 h-11 sm:h-12 font-bold text-xs shadow-xl transition-all flex items-center gap-1.5"
+            className="bg-rose-600 hover:bg-rose-500 text-white rounded-2xl px-4 h-12 font-semibold text-xs shadow-sm transition-all flex items-center gap-2 active:scale-95"
           >
+            <PhoneOff className="w-4 h-4" />
             <span>Finalizar</span>
-            <span>🛑</span>
           </button>
         </div>
 
-        <div className="text-xs text-zinc-500 font-mono hidden md:block">
+        <div className="text-xs text-zinc-500 font-medium hidden md:block">
           Kasupport Meet
         </div>
       </footer>

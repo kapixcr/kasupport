@@ -8,15 +8,40 @@ import {
   type Theme,
 } from "@/lib/api";
 import { desktopNotify, ensureNotificationPermission, playDing } from "@/lib/notify";
+import {
+  Settings,
+  Hash,
+  Building2,
+  Users,
+  Code2,
+  Mail,
+  Palette,
+  Bell,
+  X,
+  Plus,
+  Lock,
+  Megaphone,
+  Pencil,
+  Trash2,
+  KeyRound,
+  Copy,
+  CheckCheck,
+  RefreshCw,
+  Moon,
+  Sun,
+  ImagePlus,
+  Volume2,
+  BellRing,
+} from "lucide-react";
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`w-12 h-7 rounded-full relative transition-colors shrink-0 ${on ? "bg-indigo-500" : "bg-zinc-300 dark:bg-zinc-600"}`}
+      className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${on ? "bg-indigo-600" : "bg-zinc-300 dark:bg-zinc-700"}`}
     >
       <span
-        className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`}
+        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${on ? "left-[22px]" : "left-0.5"}`}
       />
     </button>
   );
@@ -32,11 +57,10 @@ interface Props {
   onBgImageChange: (dataUrl: string | null) => void;
   onPrefChange: (data: { notif_enabled?: boolean; notif_sound?: boolean }) => void;
   onClose: () => void;
-  onChanged: () => void; // refrescar canales/departamentos en la app
+  onChanged: () => void;
 }
 
 type Tab = "canales" | "departamentos" | "equipo" | "widget" | "correo" | "apariencia" | "avisos";
-
 
 const PRESETS: { name: string; theme: Theme }[] = [
   { name: "Slack oscuro", theme: { sidebar: "#19171d", accent: "#1164a3", bubble: "#4f46e5" } },
@@ -48,10 +72,10 @@ const PRESETS: { name: string; theme: Theme }[] = [
 ];
 
 const NEON_PRESETS: { name: string; theme: Theme }[] = [
-  { name: "Neón cyber",  theme: { sidebar: "#0a0a12", accent: "#00e5ff", bubble: "#7b2ff7", glow: "#00e5ff" } },
-  { name: "Neón verde",  theme: { sidebar: "#050d05", accent: "#39ff14", bubble: "#15803d", glow: "#39ff14" } },
-  { name: "Neón rosa",   theme: { sidebar: "#12051a", accent: "#ff2ec4", bubble: "#a21caf", glow: "#ff2ec4" } },
-  { name: "Neón ámbar",  theme: { sidebar: "#140d02", accent: "#ffb020", bubble: "#b45309", glow: "#ffb020" } },
+  { name: "Cyber",  theme: { sidebar: "#0a0a12", accent: "#00e5ff", bubble: "#7b2ff7", glow: "#00e5ff" } },
+  { name: "Verde",  theme: { sidebar: "#050d05", accent: "#39ff14", bubble: "#15803d", glow: "#39ff14" } },
+  { name: "Rosa",   theme: { sidebar: "#12051a", accent: "#ff2ec4", bubble: "#a21caf", glow: "#ff2ec4" } },
+  { name: "Ámbar",  theme: { sidebar: "#140d02", accent: "#ffb020", bubble: "#b45309", glow: "#ffb020" } },
 ];
 
 /* --------------------------- fila editable genérica --------------------------- */
@@ -85,39 +109,53 @@ function EditableRow({ label, sub, canEdit, onRename, onDelete, deleteLabel = "E
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="flex-1 border border-indigo-300 rounded px-2 py-1 text-sm outline-none"
+            className="flex-1 border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 rounded-xl px-3 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
           />
-          <button className="text-xs text-indigo-600 font-semibold">Guardar</button>
-          <button type="button" onClick={() => { setEditing(false); setName(label); }} className="text-xs text-zinc-400">
+          <button className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold px-2 py-1">
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEditing(false); setName(label); }}
+            className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 px-1"
+          >
             Cancelar
           </button>
         </form>
       ) : (
         <>
-          <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1 truncate">{label}</span>
-          {sub && <span className="text-xs text-zinc-400">{sub}</span>}
+          <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 flex-1 truncate">{label}</span>
+          {sub && <span className="text-[10px] text-zinc-400 font-mono">{sub}</span>}
           {canEdit && !confirming && (
-            <>
-              <button className="text-xs text-indigo-600 hover:underline" onClick={() => setEditing(true)}>
-                Renombrar
+            <div className="flex items-center gap-1">
+              <button
+                className="p-1 rounded-lg text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                onClick={() => setEditing(true)}
+                title="Renombrar"
+              >
+                <Pencil className="w-3.5 h-3.5" />
               </button>
               {onDelete && (
-                <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirming(true)}>
-                  {deleteLabel}
+                <button
+                  className="p-1 rounded-lg text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                  onClick={() => setConfirming(true)}
+                  title={deleteLabel}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
-            </>
+            </div>
           )}
           {confirming && (
             <span className="flex items-center gap-2 text-xs">
-              <span className="text-zinc-500">¿Seguro?</span>
+              <span className="text-zinc-500 text-[11px]">¿Eliminar?</span>
               <button
-                className="text-red-600 font-semibold"
+                className="text-rose-600 font-semibold hover:underline"
                 onClick={() => { setConfirming(false); onDelete?.(); }}
               >
                 Sí
               </button>
-              <button className="text-zinc-400" onClick={() => setConfirming(false)}>No</button>
+              <button className="text-zinc-400 hover:underline" onClick={() => setConfirming(false)}>No</button>
             </span>
           )}
         </>
@@ -142,14 +180,14 @@ function MembersManager({ channel, onChanged }: { channel: Channel; onChanged: (
   const nonMembers = allAgents.filter((a) => !members.some((m) => m.id === a.id));
 
   return (
-    <div className="mt-2 ml-2 border-l-2 border-zinc-100 pl-3 pb-2">
-      <p className="text-xs font-semibold text-zinc-500 mb-1">Miembros ({members.length})</p>
+    <div className="mt-2 ml-2 border-l-2 border-zinc-100 dark:border-zinc-800 pl-3 pb-2">
+      <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Miembros ({members.length})</p>
       <ul className="space-y-1 mb-2">
         {members.map((m) => (
-          <li key={m.id} className="flex items-center gap-2 text-xs text-zinc-700">
+          <li key={m.id} className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300">
             <span>{m.name}</span>
             <button
-              className="text-red-500 hover:underline"
+              className="text-[11px] text-rose-500 hover:text-rose-700 hover:underline"
               onClick={() => api.removeChannelMember(channel.id, m.id).then(() => { load(); onChanged(); })}
             >
               quitar
@@ -162,7 +200,7 @@ function MembersManager({ channel, onChanged }: { channel: Channel; onChanged: (
           <select
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
-            className="border border-zinc-300 rounded px-2 py-1 text-xs flex-1"
+            className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-lg px-2 py-1 text-xs flex-1 outline-none"
           >
             <option value="">Agregar miembro...</option>
             {nonMembers.map((a) => (
@@ -174,7 +212,7 @@ function MembersManager({ channel, onChanged }: { channel: Channel; onChanged: (
             onClick={() =>
               api.addChannelMember(channel.id, Number(selected)).then(() => { setSelected(""); load(); onChanged(); })
             }
-            className="text-xs bg-indigo-600 disabled:bg-zinc-300 text-white rounded px-2 py-1"
+            className="text-xs bg-indigo-600 disabled:opacity-40 text-white rounded-lg px-2.5 py-1 font-medium transition-all"
           >
             Agregar
           </button>
@@ -228,10 +266,10 @@ function AgentRow({
   };
 
   return (
-    <li className="py-3 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+    <li className="py-3 border-b border-zinc-100 dark:border-zinc-800/80 last:border-0">
       <div className="flex items-center gap-3">
-        <span
-          className="w-8 h-8 rounded text-white flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden"
+        <div
+          className="w-8 h-8 rounded-xl text-white flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden shadow-xs"
           style={{ background: agent.color || "#4f46e5" }}
         >
           {agent.avatar ? (
@@ -239,10 +277,10 @@ function AgentRow({
           ) : (
             agent.name.charAt(0).toUpperCase()
           )}
-        </span>
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{agent.name}</p>
-          <p className="text-xs text-zinc-400 truncate">{agent.email}</p>
+          <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">{agent.name}</p>
+          <p className="text-[10px] text-zinc-400 truncate">{agent.email}</p>
         </div>
 
         {(isAdmin || agent.id === me.id) && (
@@ -252,10 +290,11 @@ function AgentRow({
               setPassError("");
               setPassSuccess("");
             }}
-            className="text-xs text-indigo-600 hover:underline dark:text-indigo-400 font-medium"
+            className="text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-medium inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900"
             title="Cambiar contraseña"
           >
-            🔑 Contraseña
+            <KeyRound className="w-3 h-3" />
+            <span>Clave</span>
           </button>
         )}
 
@@ -263,34 +302,34 @@ function AgentRow({
           <select
             value={agent.role}
             onChange={(e) => onRoleChange(e.target.value)}
-            className="border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded px-2 py-1 text-xs outline-none"
+            className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
           >
             <option value="agent">agente</option>
             <option value="admin">admin</option>
           </select>
         ) : (
-          <span className="text-xs font-semibold text-zinc-500 uppercase px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">
+          <span className="text-[10px] font-bold text-zinc-500 uppercase px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-md">
             {agent.role}
           </span>
         )}
       </div>
 
       {changingPass && (
-        <form onSubmit={handlePasswordSubmit} className="mt-2.5 ml-11 flex flex-col gap-1.5 bg-zinc-50 dark:bg-zinc-800/50 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <form onSubmit={handlePasswordSubmit} className="mt-2.5 ml-11 flex flex-col gap-1.5 bg-zinc-50 dark:bg-zinc-800/50 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700">
           <div className="flex gap-2">
             <input
               type="password"
               value={newPass}
               onChange={(e) => setNewPass(e.target.value)}
-              placeholder="Nueva contraseña (mínimo 6 caracteres)"
+              placeholder="Nueva contraseña (mín. 6 caracteres)"
               required
               minLength={6}
-              className="flex-1 border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 rounded px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+              className="flex-1 border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
             />
             <button
               type="submit"
               disabled={loading}
-              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-300 text-white text-xs font-semibold px-3 py-1 rounded"
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1 rounded-lg transition-all"
             >
               {loading ? "Guardando..." : "Guardar"}
             </button>
@@ -302,8 +341,8 @@ function AgentRow({
               Cancelar
             </button>
           </div>
-          {passError && <p className="text-xs text-red-500 font-medium">{passError}</p>}
-          {passSuccess && <p className="text-xs text-green-600 font-medium">{passSuccess}</p>}
+          {passError && <p className="text-xs text-rose-500 font-medium">{passError}</p>}
+          {passSuccess && <p className="text-xs text-emerald-500 font-medium">{passSuccess}</p>}
         </form>
       )}
     </li>
@@ -311,7 +350,6 @@ function AgentRow({
 }
 
 /* --------------------------------- modal --------------------------------- */
-
 
 export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeChange, bgImage, onBgImageChange, onPrefChange, onClose, onChanged }: Props) {
   const bgFileRef = useRef<HTMLInputElement>(null);
@@ -366,7 +404,6 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     try {
       await navigator.clipboard.writeText(embedSnippet);
     } catch {
-      // Fallback para Electron/HTTP
       const ta = document.createElement("textarea");
       ta.value = embedSnippet;
       document.body.appendChild(ta);
@@ -378,49 +415,62 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: "canales", label: "Canales" },
-    { id: "departamentos", label: "Dptos." },
-    { id: "equipo", label: "Equipo" },
-    { id: "widget", label: "Widget web" },
-    { id: "correo", label: "📧 Correo" },
-    { id: "apariencia", label: "🎨" },
-    { id: "avisos", label: "🔔" },
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "canales", label: "Canales", icon: <Hash className="w-3.5 h-3.5" /> },
+    { id: "departamentos", label: "Dptos", icon: <Building2 className="w-3.5 h-3.5" /> },
+    { id: "equipo", label: "Equipo", icon: <Users className="w-3.5 h-3.5" /> },
+    { id: "widget", label: "Widget", icon: <Code2 className="w-3.5 h-3.5" /> },
+    { id: "correo", label: "Correo", icon: <Mail className="w-3.5 h-3.5" /> },
+    { id: "apariencia", label: "Tema", icon: <Palette className="w-3.5 h-3.5" /> },
+    { id: "avisos", label: "Avisos", icon: <Bell className="w-3.5 h-3.5" /> },
   ];
-
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-          <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-100">Configuración</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xl">×</button>
+        <header className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <Settings className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">Configuración del Sistema</h2>
+              <p className="text-[11px] text-zinc-400">Administra canales, accesos y apariencia</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </header>
 
-        <nav className="px-6 pt-3 flex gap-2">
+        <nav className="px-6 pt-3 pb-2 border-b border-zinc-100 dark:border-zinc-800/80 flex gap-1.5 overflow-x-auto bg-zinc-50/50 dark:bg-zinc-950/40">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`text-sm px-3 py-1.5 rounded-lg font-medium ${
+              className={`text-xs px-3 py-1.5 rounded-xl font-medium flex items-center gap-1.5 transition-all shrink-0 ${
                 tab === t.id
-                  ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200"
-                  : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800"
               }`}
             >
-              {t.label}
+              {t.icon}
+              <span>{t.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {error && <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/40 p-2.5 rounded-xl border border-rose-200 dark:border-rose-800 mb-4">{error}</p>}
 
           {tab === "canales" && (
             <>
@@ -444,30 +494,31 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                       value={newItem}
                       onChange={(e) => setNewItem(e.target.value)}
                       placeholder="nuevo-canal"
-                      className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm outline-none"
+                      className="flex-1 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
                     />
-                    <button className="bg-[#4f46e5] text-white text-sm font-semibold rounded-lg px-4">
-                      Crear
+                    <button className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl px-4 py-2 flex items-center gap-1.5 transition-all shadow-sm">
+                      <Plus className="w-3.5 h-3.5" /> Crear
                     </button>
                   </div>
-                  <div className="flex gap-4 text-xs text-zinc-600">
-                    <label className="flex items-center gap-1">
-                      <input type="checkbox" checked={newPrivate} onChange={(e) => setNewPrivate(e.target.checked)} />
-                      🔒 Privado
+                  <div className="flex gap-4 text-xs text-zinc-600 dark:text-zinc-400">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={newPrivate} onChange={(e) => setNewPrivate(e.target.checked)} className="rounded" />
+                      <Lock className="w-3 h-3" /> Privado
                     </label>
-                    <label className="flex items-center gap-1">
-                      <input type="checkbox" checked={newAdminOnly} onChange={(e) => setNewAdminOnly(e.target.checked)} />
-                      📢 Solo admins escriben
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={newAdminOnly} onChange={(e) => setNewAdminOnly(e.target.checked)} className="rounded" />
+                      <Megaphone className="w-3 h-3" /> Solo admins
                     </label>
                   </div>
                 </form>
               )}
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
                 {channels.map((c) => (
                   <li key={c.id} className="py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-zinc-800 dark:text-zinc-200 flex-1 truncate">
-                        {c.is_private ? "🔒" : c.post_policy === "admin" ? "📢" : "#"} {c.name}
+                      <span className="text-xs text-zinc-800 dark:text-zinc-200 flex-1 truncate flex items-center gap-1.5 font-medium">
+                        {c.is_private ? <Lock className="w-3.5 h-3.5 text-amber-500" /> : c.post_policy === "admin" ? <Megaphone className="w-3.5 h-3.5 text-indigo-500" /> : <Hash className="w-3.5 h-3.5 text-zinc-400" />}
+                        {c.name}
                       </span>
                       {isAdmin && (
                         <>
@@ -490,7 +541,7 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                             Solo admin
                           </label>
                           <button
-                            className="text-xs text-red-600 hover:underline"
+                            className="text-xs text-rose-500 hover:text-rose-600 hover:underline"
                             onClick={() => run(() => api.deleteChannel(c.id))}
                           >
                             Archivar
@@ -519,15 +570,15 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                   <input
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
-                    placeholder="Nuevo departamento"
-                    className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm outline-none"
+                    placeholder="Nuevo departamento (ej: Ventas, Soporte TI)"
+                    className="flex-1 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
                   />
-                  <button className="bg-[#4f46e5] text-white text-sm font-semibold rounded-lg px-4">
-                    Crear
+                  <button className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl px-4 py-2 flex items-center gap-1.5 transition-all shadow-sm">
+                    <Plus className="w-3.5 h-3.5" /> Crear
                   </button>
                 </form>
               )}
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
                 {departments.map((d) => (
                   <EditableRow
                     key={d.id}
@@ -539,15 +590,14 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                   />
                 ))}
               </ul>
-              <p className="text-xs text-zinc-400 mt-3">
+              <p className="text-[11px] text-zinc-400 mt-3">
                 Los visitantes del widget web eligen uno de estos departamentos al iniciar un chat.
-                Solo se puede eliminar un departamento sin conversaciones.
               </p>
             </>
           )}
 
           {tab === "equipo" && (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
               {agents.map((a) => (
                 <AgentRow
                   key={a.id}
@@ -560,34 +610,22 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
             </ul>
           )}
 
-
           {tab === "widget" && (
             <div className="space-y-4">
-              <p className="text-sm text-zinc-600">
+              <p className="text-xs text-zinc-600 dark:text-zinc-300">
                 Pega este código en cualquier página web antes de <code>&lt;/body&gt;</code> para mostrar
-                la burbuja de soporte. Los visitantes elegirán departamento y el chat llegará
-                directo a esta app.
+                la burbuja de soporte en tiempo real:
               </p>
-              <pre className="bg-zinc-900 text-green-300 text-xs rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+              <pre className="bg-zinc-950 text-emerald-400 font-mono text-xs rounded-2xl p-4 overflow-x-auto border border-zinc-800">
                 {embedSnippet}
               </pre>
               <button
                 onClick={copyEmbed}
-                className="w-full bg-[#4f46e5] hover:bg-[#4338ca] text-white font-semibold rounded-lg py-2.5 text-sm"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl py-2.5 text-xs transition-all flex items-center justify-center gap-2 shadow-sm"
               >
-                {copied ? "✓ ¡Copiado!" : "Copiar código embed"}
+                {copied ? <CheckCheck className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                <span>{copied ? "¡Copiado al portapapeles!" : "Copiar código embed"}</span>
               </button>
-              <div className="text-xs text-zinc-500 space-y-1">
-                <p>• Personaliza título y color antes del script:</p>
-                <pre className="bg-zinc-100 rounded p-2 text-[11px] overflow-x-auto">
-{`<script>
-  window.KASUPPORT = { title: 'Ayuda', color: '#e01e5a' };
-</script>`}
-                </pre>
-                <p>
-                  • Página de prueba: <code>{API}/demo.html</code>
-                </p>
-              </div>
             </div>
           )}
 
@@ -595,118 +633,68 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
                 <div>
-                  <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    ✉️ Integración de Correo Google Workspace
+                  <h3 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-indigo-500" /> Integración Google Workspace
                   </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Buzón de soporte: <strong>soporte@kapix.co.cr</strong>
+                  <p className="text-[10px] text-zinc-400">
+                    Buzón: <strong>soporte@kapix.co.cr</strong>
                   </p>
                 </div>
                 <button
                   onClick={loadEmailStatus}
                   disabled={loadingEmail}
-                  className="text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-semibold"
+                  className="text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 font-semibold flex items-center gap-1.5"
                 >
-                  {loadingEmail ? "Comprobando…" : "🔄 Actualizar estado"}
+                  <RefreshCw className={`w-3 h-3 ${loadingEmail ? "animate-spin" : ""}`} />
+                  <span>Actualizar</span>
                 </button>
               </div>
 
               {/* Estado IMAP */}
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 space-y-3">
+              <div className="bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-200/80 dark:border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${emailInfo?.poller?.enabled ? "bg-green-500 animate-pulse" : "bg-amber-500"}`} />
-                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-                      Lector de Correos Entrantes (IMAP)
+                    <span className={`w-2.5 h-2.5 rounded-full ${emailInfo?.poller?.enabled ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+                    <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
+                      Lector Entrante (IMAP)
                     </span>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                     emailInfo?.poller?.enabled
-                      ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300"
+                      ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
                       : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
                   }`}>
-                    {emailInfo?.poller?.enabled ? "Activo" : "Pendiente de credenciales"}
+                    {emailInfo?.poller?.enabled ? "Activo" : "Pendiente"}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-600 dark:text-zinc-400">
                   <div>
-                    <span className="text-zinc-400 block text-[10px]">Cuenta conectada:</span>
-                    <span className="font-mono text-zinc-700 dark:text-zinc-300">
+                    <span className="text-zinc-400 block text-[10px]">Cuenta:</span>
+                    <span className="font-mono text-zinc-800 dark:text-zinc-200">
                       {emailInfo?.poller?.user || "soporte@kapix.co.cr"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-400 block text-[10px]">Servidor IMAP:</span>
-                    <span className="font-mono text-zinc-700 dark:text-zinc-300">
-                      {emailInfo?.poller?.host || "imap.gmail.com:993"}
+                    <span className="text-zinc-400 block text-[10px]">Servidor:</span>
+                    <span className="font-mono text-zinc-800 dark:text-zinc-200">
+                      {emailInfo?.poller?.host || "imap.gmail.com"}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Último sondeo:</span>
-                    <span>{emailInfo?.poller?.lastPollTime ? new Date(emailInfo.poller.lastPollTime).toLocaleTimeString() : "Iniciando…"}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block text-[10px]">Correos procesados:</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{emailInfo?.poller?.processedCount ?? 0}</span>
-                  </div>
                 </div>
-
-                {emailInfo?.poller?.lastError && (
-                  <p className="text-xs text-red-500 bg-red-50 dark:bg-red-950/40 p-2 rounded-lg border border-red-200 dark:border-red-800">
-                    Último aviso: {emailInfo.poller.lastError}
-                  </p>
-                )}
-              </div>
-
-              {/* Estado SMTP */}
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${emailInfo?.smtp?.enabled ? "bg-green-500" : "bg-amber-500"}`} />
-                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-                      Despachador de Respuestas (SMTP)
-                    </span>
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                    emailInfo?.smtp?.enabled
-                      ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300"
-                      : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
-                  }`}>
-                    {emailInfo?.smtp?.enabled ? "Listo" : "Pendiente"}
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Remitente de salida: <code className="font-mono text-zinc-700 dark:text-zinc-300">{emailInfo?.smtp?.from || "soporte@kapix.co.cr"}</code>
-                </p>
-              </div>
-
-              {/* Guía de variables para Coolify */}
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-2">
-                <p className="font-semibold text-zinc-700 dark:text-zinc-300">
-                  ℹ️ ¿Cómo conectar el correo en Coolify?
-                </p>
-                <ol className="list-decimal list-inside space-y-1 text-[11px] leading-relaxed">
-                  <li>Genera una contraseña de aplicación de 16 letras en <a href="https://myaccount.google.com/apppasswords" target="_blank" className="text-indigo-600 underline">myaccount.google.com/apppasswords</a> para <code>soporte@kapix.co.cr</code>.</li>
-                  <li>Agrega en las variables de entorno de Coolify: <code>EMAIL_IMAP_USER=soporte@kapix.co.cr</code> y <code>EMAIL_IMAP_PASSWORD=tu_contraseña</code>.</li>
-                  <li>Haz clic en <strong>Redeploy</strong> en Coolify y el estado cambiará a <strong>Activo</strong>.</li>
-                </ol>
               </div>
             </div>
           )}
+
           {tab === "avisos" && (
-
             <div className="space-y-4">
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                Avisos cuando llegan chats nuevos del widget web o mensajes de visitantes.
-                Son preferencias personales de tu cuenta.
-              </p>
-
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-200/80 dark:border-zinc-800">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">🔔 Notificaciones de escritorio</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Aviso del sistema aunque la app esté minimizada
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5">
+                    <BellRing className="w-3.5 h-3.5 text-indigo-500" /> Notificaciones de escritorio
+                  </p>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Avisos del sistema operativo aunque la app esté en segundo plano
                   </p>
                 </div>
                 <Toggle
@@ -715,11 +703,13 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                 />
               </div>
 
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-200/80 dark:border-zinc-800">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">🔊 Sonido de aviso</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Un "ding" corto con cada chat o mensaje nuevo
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5">
+                    <Volume2 className="w-3.5 h-3.5 text-indigo-500" /> Sonido de aviso (Ding)
+                  </p>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Reproduce un sonido cuando llega un mensaje o chat nuevo
                   </p>
                 </div>
                 <Toggle
@@ -732,90 +722,71 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                 onClick={async () => {
                   const granted = await ensureNotificationPermission();
                   playDing();
-                  if (granted) desktopNotify("🔔 Prueba de Kasupport", "Así se verán los avisos de chats nuevos");
+                  if (granted) desktopNotify("🔔 Prueba de Kasupport", "Así se verán los avisos en tu pantalla");
                 }}
-                className="w-full border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 text-sm font-semibold rounded-lg py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950"
+                className="w-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 text-xs font-semibold rounded-xl py-2.5 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/40 transition-all flex items-center justify-center gap-2"
               >
-                Probar notificación y sonido
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Probar sonido y notificación</span>
               </button>
-
-              <p className="text-xs text-zinc-400">
-                Si no sale el aviso del sistema, revisa los permisos de notificaciones de tu
-                navegador o de macOS para la app.
-              </p>
             </div>
           )}
 
           {tab === "apariencia" && (
             <div className="space-y-5">
-              {/* Modo oscuro */}
-              <div className="flex items-center justify-between bg-zinc-100 dark:bg-zinc-800 rounded-xl px-4 py-3">
+              {/* Modo Oscuro */}
+              <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-200/80 dark:border-zinc-800">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
-                    {darkMode ? "🌙 Modo oscuro" : "☀️ Modo claro"}
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-100 flex items-center gap-1.5">
+                    {darkMode ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+                    {darkMode ? "Modo oscuro activo" : "Modo claro activo"}
                   </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Cambia el fondo del área de chats y paneles
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Ajusta los fondos del área de chat y paneles secundarios
                   </p>
                 </div>
-                <button
-                  onClick={() => onDarkModeChange(!darkMode)}
-                  className={`w-12 h-7 rounded-full relative transition-colors ${
-                    darkMode ? "bg-indigo-500" : "bg-zinc-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${
-                      darkMode ? "left-[22px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                <Toggle on={darkMode} onClick={() => onDarkModeChange(!darkMode)} />
               </div>
 
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                Personaliza los colores de <strong>tu</strong> aplicación. Es una preferencia
-                personal: no afecta a otros usuarios.
-              </p>
-
-              {/* Presets */}
+              {/* Presets Rápidos */}
               <div>
-                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">Temas rápidos</p>
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Temas rápidos</p>
                 <div className="grid grid-cols-3 gap-2">
                   {PRESETS.map((p) => (
                     <button
                       key={p.name}
                       onClick={() => onThemeChange(p.theme)}
-                      className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 hover:border-indigo-400 text-left"
+                      className="border border-zinc-200 dark:border-zinc-800 rounded-2xl p-2.5 hover:border-indigo-400 text-left bg-zinc-50/50 dark:bg-zinc-800/40 transition-all"
                     >
-                      <span className="flex gap-1 mb-1.5">
-                        <span className="w-4 h-4 rounded" style={{ background: p.theme.sidebar }} />
-                        <span className="w-4 h-4 rounded" style={{ background: p.theme.accent }} />
-                        <span className="w-4 h-4 rounded" style={{ background: p.theme.bubble }} />
+                      <span className="flex gap-1.5 mb-1.5">
+                        <span className="w-4 h-4 rounded-md" style={{ background: p.theme.sidebar }} />
+                        <span className="w-4 h-4 rounded-md" style={{ background: p.theme.accent }} />
+                        <span className="w-4 h-4 rounded-md" style={{ background: p.theme.bubble }} />
                       </span>
-                      <span className="text-xs text-zinc-700 dark:text-zinc-300">{p.name}</span>
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{p.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Presets neón */}
+              {/* Presets Neón */}
               <div>
-                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">✨ Temas neón</p>
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Temas Neón</p>
                 <div className="grid grid-cols-4 gap-2">
                   {NEON_PRESETS.map((p) => (
                     <button
                       key={p.name}
                       onClick={() => onThemeChange(p.theme)}
-                      className="border rounded-lg p-2 text-left"
+                      className="rounded-2xl p-2.5 text-left border transition-all"
                       style={{
                         background: p.theme.sidebar,
                         borderColor: p.theme.glow || p.theme.accent,
-                        boxShadow: `0 0 10px ${p.theme.glow}55`,
+                        boxShadow: `0 0 10px ${p.theme.glow}40`,
                       }}
                     >
                       <span
-                        className="block text-xs font-semibold"
-                        style={{ color: p.theme.accent, textShadow: `0 0 8px ${p.theme.glow}` }}
+                        className="block text-xs font-bold"
+                        style={{ color: p.theme.accent, textShadow: `0 0 6px ${p.theme.glow}` }}
                       >
                         {p.name}
                       </span>
@@ -824,9 +795,9 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                 </div>
               </div>
 
-              {/* Fondo de imagen */}
+              {/* Fondo Personalizado */}
               <div>
-                <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">🖼️ Fondo del área de chat</p>
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Fondo del área de mensajes</p>
                 <input
                   ref={bgFileRef}
                   type="file"
@@ -843,10 +814,10 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                 />
                 {bgImage ? (
                   <div className="flex items-center gap-3">
-                    <img src={bgImage} alt="fondo" className="w-24 h-16 object-cover rounded-lg border border-zinc-300 dark:border-zinc-600" />
+                    <img src={bgImage} alt="fondo" className="w-20 h-14 object-cover rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-xs" />
                     <button
                       onClick={() => onBgImageChange(null)}
-                      className="text-xs text-red-600 border border-red-200 dark:border-red-900 rounded-lg px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950"
+                      className="text-xs text-rose-500 hover:text-rose-600 border border-rose-200 dark:border-rose-900 rounded-xl px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
                     >
                       Quitar fondo
                     </button>
@@ -854,51 +825,46 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
                 ) : (
                   <button
                     onClick={() => bgFileRef.current?.click()}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-lg px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950 w-full"
+                    className="text-xs text-indigo-600 dark:text-indigo-400 border border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl px-4 py-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 w-full flex items-center justify-center gap-2 transition-all font-medium"
                   >
-                    + Subir imagen de fondo (se aplica con un velo para leer bien los mensajes)
+                    <ImagePlus className="w-4 h-4" />
+                    <span>Subir imagen de fondo</span>
                   </button>
                 )}
               </div>
 
               {/* Colores individuales */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-zinc-500">Colores personalizados</p>
+              <div className="space-y-2.5">
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">Colores personalizados</p>
                 {(
                   [
                     ["sidebar", "Barra lateral"],
-                    ["accent", "Acento (selección y botones)"],
-                    ["bubble", "Mis burbujas de chat"],
+                    ["accent", "Acento (botones y selección)"],
+                    ["bubble", "Burbujas de soporte"],
                   ] as ["sidebar" | "accent" | "bubble", string][]
                 ).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+                  <label key={key} className="flex items-center gap-3 text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/40 p-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
                     <input
                       type="color"
                       value={theme[key]}
                       onChange={(e) => onThemeChange({ ...theme, [key]: e.target.value })}
-                      className="w-10 h-8 rounded cursor-pointer border border-zinc-300 dark:border-zinc-600"
+                      className="w-8 h-8 rounded-lg cursor-pointer border border-zinc-300 dark:border-zinc-700 bg-transparent"
                     />
-                    {label}
-                    <span className="text-xs text-zinc-400 ml-auto">{theme[key]}</span>
+                    <span className="font-medium">{label}</span>
+                    <span className="text-[11px] font-mono text-zinc-400 ml-auto">{theme[key]}</span>
                   </label>
                 ))}
               </div>
 
               <button
                 onClick={() => onThemeChange(null)}
-                className="text-xs text-zinc-500 border border-zinc-300 rounded-lg px-3 py-1.5 hover:bg-zinc-50"
+                className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-1.5 transition-colors"
               >
                 Restablecer colores por defecto
               </button>
             </div>
           )}
         </div>
-
-        {!isAdmin && tab !== "widget" && tab !== "apariencia" && tab !== "avisos" && (
-          <footer className="px-6 py-3 border-t border-zinc-100 text-xs text-zinc-400">
-            Solo los administradores pueden crear o modificar canales y departamentos.
-          </footer>
-        )}
       </div>
     </div>
   );

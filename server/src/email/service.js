@@ -5,8 +5,10 @@ class EmailService {
     this.transporter = null;
     this.enabled = false;
     this.from = process.env.EMAIL_FROM || 'Kasupport Soporte <soporte@kapix.co.cr>';
+    this.replyTo = process.env.EMAIL_REPLY_TO || 'soporte@kapix.co.cr';
     this.init();
   }
+
 
   init() {
     const host = process.env.EMAIL_SMTP_HOST || 'smtp.gmail.com';
@@ -71,6 +73,7 @@ class EmailService {
     try {
       const info = await this.transporter.sendMail({
         from: this.from,
+        replyTo: this.replyTo,
         to,
         subject: fullSubject,
         text: textBody,
@@ -78,6 +81,7 @@ class EmailService {
         inReplyTo: inReplyTo || undefined,
         references: references || inReplyTo || undefined,
       });
+
       console.log(`✓ Correo de respuesta enviado a ${to} para Ticket #${ticketId} (Message-ID: ${info.messageId})`);
       return { sent: true, messageId: info.messageId };
     } catch (err) {
@@ -127,6 +131,7 @@ class EmailService {
     try {
       await this.transporter.sendMail({
         from: this.from,
+        replyTo: this.replyTo,
         to,
         subject: fullSubject,
         text: textBody,
@@ -134,6 +139,7 @@ class EmailService {
       });
       console.log(`✓ Confirmación de Ticket #${ticketId} enviada a ${to}`);
     } catch (err) {
+
       console.error(`× No se pudo enviar confirmación a ${to}:`, err.message);
     }
   }

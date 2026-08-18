@@ -5,6 +5,19 @@ import {
   type MediaSessionLease,
 } from "@/lib/mediaSessionCoordinator";
 import { playDing } from "@/lib/notify";
+import {
+  Mic,
+  MicOff,
+  Video as VideoIcon,
+  VideoOff,
+  Phone,
+  PhoneOff,
+  ScreenShare,
+  Maximize2,
+  Minimize2,
+  Expand,
+  Shrink,
+} from "lucide-react";
 
 export interface CallPeer {
   id: number;
@@ -299,7 +312,7 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
       try {
         await pc.addIceCandidate(candidate);
       } catch {
-        // A stale candidate must not prevent the rest of the queue from flushing.
+        // Ignorar
       }
     }
   }, []);
@@ -412,7 +425,7 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
           try {
             await pc.addIceCandidate(d.data.candidate);
           } catch {
-            // Ignore stale candidates from a connection that has already ended.
+            // Ignorar
           }
         } else if (phaseRef.current !== "idle") {
           pendingCandidates.current.push(d.data.candidate);
@@ -564,7 +577,7 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
       try {
         await sender.replaceTrack(cameraTrack);
       } catch {
-        // The connection may have closed while the picker was being dismissed.
+        // Ignorar
       }
     }
     if (localVideoRef.current) {
@@ -607,7 +620,7 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
       return { className: "fixed inset-0 z-[100] w-screen h-screen bg-zinc-950 p-4 flex flex-col" };
     }
     if (sizeMode === "large") {
-      return { className: "fixed inset-4 sm:inset-10 z-50 bg-zinc-900/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden" };
+      return { className: "fixed inset-4 sm:inset-10 z-50 bg-zinc-900/95 backdrop-blur rounded-3xl shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-in fade-in" };
     }
     if (pos) {
       return {
@@ -615,50 +628,50 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
         style: { left: `${pos.x}px`, top: `${pos.y}px` },
       };
     }
-    return { className: "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" };
+    return { className: "fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4" };
   };
 
   const containerProps = getContainerStyle();
 
   return (
     <div ref={containerRef} className={containerProps.className} style={containerProps.style}>
-      <div className="bg-zinc-900 text-white rounded-2xl shadow-2xl w-full h-full max-w-[95vw] flex flex-col overflow-hidden border border-white/10">
-        {/* Header con Arrastrar y Pantalla Completa */}
+      <div className="bg-zinc-900 text-white rounded-3xl shadow-2xl w-full h-full max-w-[95vw] flex flex-col overflow-hidden border border-white/10 animate-in fade-in zoom-in-95">
+        {/* Header con Arrastrar y Controles */}
         <div
           onMouseDown={startDrag}
-          className="px-5 py-3 border-b border-white/10 flex items-center gap-3 select-none cursor-grab active:cursor-grabbing bg-zinc-800/60 shrink-0"
+          className="px-5 py-3 border-b border-white/10 flex items-center gap-3 select-none cursor-grab active:cursor-grabbing bg-zinc-850/80 shrink-0"
         >
-          <span className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center font-bold overflow-hidden shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center font-bold overflow-hidden shrink-0 shadow-sm">
             {peer?.avatar ? (
               <img src={peer.avatar} alt={peer.name} className="w-full h-full object-cover" />
             ) : (
               peer?.name?.charAt(0).toUpperCase()
             )}
-          </span>
-          <div className="flex-1">
-            <p className="font-semibold">{peer?.name}</p>
-            <p className="text-xs text-zinc-400">
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold truncate">{peer?.name}</p>
+            <p className="text-[10px] text-zinc-400">
               {phase === "outgoing" && "Llamando…"}
-              {phase === "incoming" && "📞 Llamada entrante"}
-              {phase === "active" && (sharing ? "🖥️ Compartiendo pantalla" : "En llamada")}
+              {phase === "incoming" && "Llamada entrante"}
+              {phase === "active" && (sharing ? "Compartiendo pantalla" : "En llamada")}
             </p>
           </div>
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
 
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setSizeMode(sizeMode === "floating" ? "large" : "floating")}
-              className="px-2.5 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded-md transition-colors"
+              className="p-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-200 transition-colors"
               title={sizeMode === "floating" ? "Maximizar llamada" : "Reducir ventana"}
             >
-              {sizeMode === "floating" ? "🗖 Agrandar" : "🗗 Reducir"}
+              {sizeMode === "floating" ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
             </button>
             <button
               onClick={toggleFullscreen}
-              className="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors font-medium"
+              className="p-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
               title="Pantalla completa"
             >
-              {isFullscreen ? "↙ Salir pantalla completa" : "⛶ Pantalla completa"}
+              {isFullscreen ? <Shrink className="w-3.5 h-3.5" /> : <Expand className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
@@ -669,10 +682,10 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`w-full h-full ${sharing ? "object-contain" : "object-contain"}`}
+            className="w-full h-full object-contain"
           />
           {phase !== "active" && (
-            <div className="absolute inset-0 flex items-center justify-center text-zinc-400 text-sm font-medium">
+            <div className="absolute inset-0 flex items-center justify-center text-zinc-400 text-xs font-medium">
               {phase === "outgoing" ? "Esperando a que contesten…" : ""}
             </div>
           )}
@@ -681,25 +694,27 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
             autoPlay
             playsInline
             muted
-            className="absolute bottom-3 right-3 w-40 rounded-xl border border-white/20 bg-zinc-800 shadow-xl object-cover"
+            className="absolute bottom-3 right-3 w-36 rounded-2xl border border-white/20 bg-zinc-800 shadow-2xl object-cover"
           />
         </div>
 
         {/* Controles Inferiores */}
-        <div className="px-5 py-3.5 flex items-center justify-center gap-3 bg-zinc-900 shrink-0 border-t border-white/10">
+        <div className="px-5 py-3.5 flex items-center justify-center gap-3 bg-zinc-950 shrink-0 border-t border-white/10">
           {phase === "incoming" ? (
             <>
               <button
                 onClick={acceptCall}
-                className="bg-green-600 hover:bg-green-500 text-white rounded-full px-6 py-2.5 font-semibold transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl px-6 py-2.5 text-xs font-semibold transition-all flex items-center gap-2 shadow-sm active:scale-95"
               >
-                📞 Contestar
+                <Phone className="w-4 h-4" />
+                <span>Contestar</span>
               </button>
               <button
                 onClick={declineCall}
-                className="bg-red-600 hover:bg-red-500 text-white rounded-full px-6 py-2.5 font-semibold transition-colors"
+                className="bg-rose-600 hover:bg-rose-500 text-white rounded-2xl px-6 py-2.5 text-xs font-semibold transition-all flex items-center gap-2 shadow-sm active:scale-95"
               >
-                Rechazar
+                <PhoneOff className="w-4 h-4" />
+                <span>Rechazar</span>
               </button>
             </>
           ) : (
@@ -707,32 +722,38 @@ export function CallManager({ me, callRequest, onRequestHandled }: Props) {
               <button
                 onClick={toggleMic}
                 title={micOn ? "Silenciar micrófono" : "Activar micrófono"}
-                className={`w-11 h-11 rounded-full text-lg transition-colors ${micOn ? "bg-zinc-700 hover:bg-zinc-600" : "bg-red-600"}`}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                  micOn ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200" : "bg-rose-600 text-white"
+                }`}
               >
-                {micOn ? "🎙️" : "🔇"}
+                {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
               </button>
               <button
                 onClick={toggleCam}
                 title={camOn ? "Apagar cámara" : "Encender cámara"}
-                className={`w-11 h-11 rounded-full text-lg transition-colors ${camOn || sharing ? "bg-zinc-700 hover:bg-zinc-600" : "bg-red-600"}`}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                  camOn || sharing ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200" : "bg-rose-600 text-white"
+                }`}
               >
-                {camOn || sharing ? "📷" : "🚫"}
+                {camOn || sharing ? <VideoIcon className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
               </button>
               {phase === "active" && (
                 <button
                   onClick={shareScreen}
                   title={sharing ? "Dejar de compartir" : "Compartir pantalla"}
-                  className={`w-11 h-11 rounded-full text-lg transition-colors ${sharing ? "bg-indigo-600" : "bg-zinc-700 hover:bg-zinc-600"}`}
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                    sharing ? "bg-indigo-600 text-white" : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                  }`}
                 >
-                  🖥️
+                  <ScreenShare className="w-4 h-4" />
                 </button>
               )}
               <button
                 onClick={hangUp}
                 title="Colgar"
-                className="w-11 h-11 rounded-full text-lg bg-red-600 hover:bg-red-500 transition-colors"
+                className="w-10 h-10 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center transition-all shadow-sm active:scale-95"
               >
-                📵
+                <PhoneOff className="w-4 h-4" />
               </button>
             </>
           )}

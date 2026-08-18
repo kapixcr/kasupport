@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type SearchResult } from "@/lib/api";
+import { Search, X, Loader2, MessageSquare, Headphones, Hash, CornerDownRight, FileText, Image as ImageIcon, Sparkles } from "lucide-react";
 
 interface Props {
   onSelect: (r: SearchResult) => void;
 }
 
+function contextIcon(r: SearchResult) {
+  if (r.channel_type === "dm") return <MessageSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0" />;
+  if (r.channel_type === "support") return <Headphones className="w-3.5 h-3.5 text-emerald-400 shrink-0" />;
+  return <Hash className="w-3.5 h-3.5 text-zinc-400 shrink-0" />;
+}
+
 function contextLabel(r: SearchResult): string {
-  if (r.channel_type === "dm") return `💬 DM con ${r.dm_other_name ?? "agente"}`;
-  if (r.channel_type === "support") return `🌐 Soporte · ${r.visitor_name ?? "visitante"}`;
-  return `# ${r.channel_name}`;
+  if (r.channel_type === "dm") return `DM con ${r.dm_other_name ?? "agente"}`;
+  if (r.channel_type === "support") return `Soporte · ${r.visitor_name ?? "visitante"}`;
+  return r.channel_name;
 }
 
 function fmtDate(iso: string) {
@@ -28,7 +35,7 @@ function Snippet({ text, q }: { text: string; q: string }) {
   return (
     <span>
       {display.slice(0, idx)}
-      <mark className="bg-yellow-300/80 text-inherit rounded-sm px-0.5">
+      <mark className="bg-indigo-500/20 text-indigo-300 rounded px-1 font-medium">
         {display.slice(idx, idx + q.length)}
       </mark>
       {display.slice(idx + q.length)}
@@ -84,53 +91,80 @@ export function SearchBar({ onSelect }: Props) {
   };
 
   return (
-    <div ref={boxRef} className="relative px-3 pb-3">
-      <div className="flex items-center gap-2 bg-white/10 rounded-lg px-2.5 py-1.5">
-        <span className="text-zinc-500 text-sm">🔍</span>
+    <div ref={boxRef} className="relative">
+      <div className="flex items-center gap-2 bg-white/[0.07] hover:bg-white/[0.1] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3 py-1.5 transition-all border border-white/5">
+        <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => { if (results.length || q.trim()) setOpen(true); }}
           onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); setQ(""); } }}
           placeholder="Buscar mensajes…"
-          className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-500 text-zinc-200"
+          className="flex-1 bg-transparent text-xs outline-none placeholder:text-zinc-500 text-zinc-200"
         />
-        {loading && <span className="text-[10px] text-zinc-500">…</span>}
-        {q && (
-          <button onClick={() => { setQ(""); setResults([]); setOpen(false); }} className="text-zinc-500 hover:text-zinc-300 text-xs">
-            ✕
+        {loading ? (
+          <Loader2 className="w-3 h-3 text-zinc-400 animate-spin shrink-0" />
+        ) : q ? (
+          <button
+            onClick={() => { setQ(""); setResults([]); setOpen(false); }}
+            className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-3 h-3" />
           </button>
+        ) : (
+          <kbd className="hidden sm:inline-flex text-[10px] text-zinc-500 font-mono bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+            ⌘K
+          </kbd>
         )}
       </div>
 
       {open && (
-        <div className="absolute left-3 right-3 top-full mt-1 z-30 bg-zinc-800 border border-white/10 rounded-xl shadow-2xl max-h-96 overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-zinc-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl max-h-96 overflow-y-auto p-1.5 divide-y divide-white/5">
           {results.length === 0 && !loading && (
-            <p className="px-3 py-3 text-xs text-zinc-500 italic">
-              {q.trim().length < 2 ? "Escribe al menos 2 caracteres" : `Sin resultados para "${q}"`}
-            </p>
+            <div className="px-3 py-4 text-center">
+              <p className="text-xs text-zinc-400 font-medium">
+                {q.trim().length < 2 ? "Escribe al menos 2 caracteres" : `Sin resultados para "${q}"`}
+              </p>
+            </div>
           )}
           {results.map((r) => (
             <button
               key={r.id}
               onClick={() => pick(r)}
-              className="w-full text-left px-3 py-2 hover:bg-white/10 border-b border-white/5 last:border-0"
+              className="w-full text-left px-3 py-2.5 hover:bg-white/10 rounded-xl transition-all group flex flex-col gap-1"
             >
-              <span className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-zinc-300 truncate">
-                  {contextLabel(r)}
-                  {r.parent_id && <span className="text-zinc-500 font-normal"> · hilo</span>}
-                </span>
-                <span className="text-[10px] text-zinc-500 shrink-0">{fmtDate(r.created_at)}</span>
-              </span>
-              <span className="block text-xs text-zinc-400 truncate mt-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {contextIcon(r)}
+                  <span className="text-xs font-semibold text-zinc-200 truncate">
+                    {contextLabel(r)}
+                  </span>
+                  {r.parent_id && (
+                    <span className="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.2 rounded-md flex items-center gap-0.5">
+                      <CornerDownRight className="w-2.5 h-2.5" /> hilo
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] text-zinc-500 shrink-0 font-medium">{fmtDate(r.created_at)}</span>
+              </div>
+              <div className="text-xs text-zinc-400 truncate pl-5">
                 <span className="font-semibold text-zinc-300">{r.author_name}: </span>
                 {r.kind === "text" ? (
                   <Snippet text={r.body} q={q.trim()} />
+                ) : r.kind === "image" ? (
+                  <span className="inline-flex items-center gap-1 text-zinc-400 italic">
+                    <ImageIcon className="w-3 h-3 inline" /> imagen
+                  </span>
+                ) : r.kind === "file" ? (
+                  <span className="inline-flex items-center gap-1 text-zinc-400 italic">
+                    <FileText className="w-3 h-3 inline" /> archivo
+                  </span>
                 ) : (
-                  <em>{r.kind === "image" ? "📷 imagen" : r.kind === "file" ? "📄 archivo" : "🧩 sticker"}</em>
+                  <span className="inline-flex items-center gap-1 text-zinc-400 italic">
+                    <Sparkles className="w-3 h-3 inline" /> sticker
+                  </span>
                 )}
-              </span>
+              </div>
             </button>
           ))}
         </div>
