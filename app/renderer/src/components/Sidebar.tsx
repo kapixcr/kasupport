@@ -246,7 +246,13 @@ export function Sidebar({
                           } : undefined}
                         >
                           <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[cv.status]}`} />
-                          <span className="truncate flex-1">{cv.visitor_name}</span>
+                          {cv.source === "email" && (
+                            <span className="text-xs shrink-0" title="Ticket recibido por correo">✉️</span>
+                          )}
+                          <span className="truncate flex-1" title={cv.subject ? `${cv.visitor_name}: ${cv.subject}` : cv.visitor_name}>
+                            {cv.visitor_name}
+                          </span>
+
                           {count > 0 && (
                             <span className="ml-auto bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0 shadow-sm animate-pulse">
                               {count}

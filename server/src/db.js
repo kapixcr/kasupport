@@ -64,9 +64,14 @@ async function ensureMeetingColumns() {
     "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ",
     "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()",
     "UPDATE meetings SET public_id = code WHERE public_id IS NULL AND code IS NOT NULL",
-    "UPDATE meetings SET code = public_id WHERE code IS NULL AND public_id IS NOT NULL",
     "UPDATE meetings SET created_by_agent_id = host_agent_id WHERE created_by_agent_id IS NULL AND host_agent_id IS NOT NULL",
     "UPDATE meetings SET host_agent_id = created_by_agent_id WHERE host_agent_id IS NULL AND created_by_agent_id IS NOT NULL",
+    "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS subject TEXT",
+    "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'widget'",
+    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS email_message_id TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_messages_email_id ON messages(email_message_id)",
+    "CREATE INDEX IF NOT EXISTS idx_visitors_email ON visitors(email)",
+
     `CREATE TABLE IF NOT EXISTS meeting_participants (
       id SERIAL PRIMARY KEY, meeting_id INT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
       participant_type TEXT NOT NULL DEFAULT 'agent', agent_id INT REFERENCES agents(id) ON DELETE SET NULL,

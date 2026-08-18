@@ -14,6 +14,9 @@ const { Server } = require('socket.io');
 const db = require('./db');
 const { loadMeetingConfig } = require('./meetings/config');
 const { createMeetingRouter, registerMeetingSocketHandlers } = require('./meetings/router');
+const emailService = require('./email/service');
+const emailPoller = require('./email/poller');
+
 
 const PORT = process.env.PORT || 4100;
 const JWT_SECRET = process.env.JWT_SECRET || 'kasupport-production-secure-default-jwt-secret-key-32ch';
@@ -628,8 +631,40 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
     parentId: parent_id || null,
   });
   broadcastMessage(message);
+
+  // Si es un ticket de soporte y el cliente tiene correo registrado, enviar respuesta por SMTP
+  if (channel.type === 'support' && conv.rows[0]?.id && kind === 'text') {
+    void (async () => {
+      try {
+        const { rows: convDetails } = await db.query(
+          `SELECT cv.id, cv.subject, v.email AS visitor_email, v.name AS visitor_name,
+                  (SELECT m.email_message_id FROM messages m
+                    WHERE m.conversation_id = cv.id AND m.email_message_id IS NOT NULL
+                    ORDER BY m.id DESC LIMIT 1) AS in_reply_to
+             FROM conversations cv
+             JOIN visitors v ON v.id = cv.visitor_id
+            WHERE cv.id = $1`,
+          [conv.rows[0].id]
+        );
+        if (convDetails[0]?.visitor_email) {
+          await emailService.sendAgentReply({
+            to: convDetails[0].visitor_email,
+            subject: convDetails[0].subject || 'Soporte',
+            body: String(body).trim(),
+            inReplyTo: convDetails[0].in_reply_to,
+            ticketId: convDetails[0].id,
+            agentName: req.agent.name,
+          });
+        }
+      } catch (err) {
+        console.error('× Error al despachar respuesta por correo SMTP:', err.message);
+      }
+    })();
+  }
+
   res.status(201).json(message);
 });
+
 
 // Hilo: padre + respuestas
 app.get('/api/messages/:id/replies', requireAuth, async (req, res) => {
@@ -712,7 +747,7 @@ app.post('/api/messages/:id/reactions', requireAuth, async (req, res) => {
 
 app.get('/api/conversations', requireAuth, async (_req, res) => {
   const { rows } = await db.query(
-    `SELECT cv.id, cv.status, cv.created_at, cv.channel_id,
+    `SELECT cv.id, cv.status, cv.created_at, cv.channel_id, cv.subject, cv.source,
             v.name AS visitor_name, v.email AS visitor_email, v.phone AS visitor_phone,
             d.name AS department_name, d.id AS department_id,
             (SELECT COUNT(*) FROM messages m WHERE m.channel_id = cv.channel_id) AS message_count,
@@ -725,6 +760,17 @@ app.get('/api/conversations', requireAuth, async (_req, res) => {
   );
   res.json(rows);
 });
+
+app.get('/api/email/status', requireAuth, async (_req, res) => {
+  res.json({
+    poller: emailPoller.getStatus(),
+    smtp: {
+      enabled: emailService.enabled,
+      from: emailService.from,
+    },
+  });
+});
+
 
 app.patch('/api/conversations/:id', requireAuth, async (req, res) => {
   const { status } = req.body || {};
@@ -1343,11 +1389,15 @@ app.use((err, _req, res, _next) => {
 
 
 db.initDb().then(() => {
+  // Inicializar lector de correos IMAP de Google Workspace
+  emailPoller.init({ db, io, uploadsDir: UPLOADS_DIR });
+
   server.listen(PORT, () => {
     console.log(`Kasupport server en http://localhost:${PORT}`);
     console.log(`Widget embed: http://localhost:${PORT}/widget.js`);
   });
 }).catch((err) => {
+
   console.error('No se pudo inicializar Kasupport:', err);
   process.exitCode = 1;
 });

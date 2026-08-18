@@ -75,8 +75,13 @@ CREATE TABLE IF NOT EXISTS conversations (
   department_id INT REFERENCES departments(id) ON DELETE SET NULL,
   channel_id    INT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
   status        TEXT NOT NULL DEFAULT 'open',       -- open | pending | closed
+  subject       TEXT,
+  source        TEXT NOT NULL DEFAULT 'widget',     -- widget | email
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS subject TEXT;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'widget';
 
 CREATE TABLE IF NOT EXISTS messages (
   id              SERIAL PRIMARY KEY,
@@ -88,11 +93,16 @@ CREATE TABLE IF NOT EXISTS messages (
   body            TEXT NOT NULL,
   kind            TEXT NOT NULL DEFAULT 'text',     -- text | sticker | image | file
   parent_id       INT REFERENCES messages(id) ON DELETE CASCADE,
+  email_message_id TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'text';
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS parent_id INT REFERENCES messages(id) ON DELETE CASCADE;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS email_message_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_messages_email_id ON messages(email_message_id);
+CREATE INDEX IF NOT EXISTS idx_visitors_email ON visitors(email);
+
 
 CREATE TABLE IF NOT EXISTS reactions (
   id         SERIAL PRIMARY KEY,

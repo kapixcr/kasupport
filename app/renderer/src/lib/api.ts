@@ -169,9 +169,12 @@ export interface Conversation {
   visitor_phone?: string;
   department_name?: string;
   department_id?: number;
+  subject?: string;
+  source?: "widget" | "email";
   message_count: string;
   last_message?: string;
 }
+
 
 /* ------------------------------- auth storage ------------------------------- */
 

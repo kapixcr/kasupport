@@ -486,9 +486,14 @@ export default function App() {
       };
     }
     const cv = conversations.find((x) => x.id === selection.id);
+    const isEmail = cv?.source === "email";
     return {
-      title: cv?.visitor_name ?? "Conversación",
-      subtitle: `Chat web · ${cv?.department_name ?? ""}`,
+      title: cv ? `${isEmail ? "✉️ " : ""}${cv.visitor_name}` : "Conversación",
+      subtitle: cv
+        ? isEmail
+          ? `Ticket #${cv.id} (Correo) · ${cv.subject ? `"${cv.subject}" · ` : ""}${cv.visitor_email || ""}`
+          : `Chat web #${cv.id} · ${cv.department_name ?? ""}${cv.visitor_email ? ` · ${cv.visitor_email}` : ""}`
+        : "",
       channel: null,
       conversation: cv ?? null,
       canPost: true,
@@ -496,6 +501,7 @@ export default function App() {
       dmPeer: null as { id: number; name: string; avatar?: string | null } | null,
     };
   }, [selection, channels, conversations, agent, dms, onlineIds]);
+
 
   if (!authChecked) {
     return <div className="h-screen w-screen bg-[#19171d]" />;
