@@ -28,6 +28,7 @@ import { CallManager, type CallPeer } from "@/components/CallManager";
 import { HuddleManager, type HuddleParticipant } from "@/components/HuddleManager";
 import { MeetingRoom } from "@/components/MeetingRoom";
 import { MeetingCalendarModal } from "@/components/MeetingCalendarModal";
+import { MailboxModal } from "@/components/MailboxModal";
 
 export default function App() {
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -38,6 +39,8 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mailboxOpen, setMailboxOpen] = useState(false);
+
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [openThread, setOpenThread] = useState<Message | null>(null);
   const [callRequest, setCallRequest] = useState<CallPeer | null>(null);
@@ -551,7 +554,9 @@ export default function App() {
         unreads={unreads}
         onNewMeeting={handleCreateMeeting}
         onOpenCalendar={() => setCalendarOpen(true)}
+        onOpenMailbox={() => setMailboxOpen(true)}
       />
+
 
 
 
@@ -645,6 +650,18 @@ export default function App() {
           onChanged={refreshAll}
         />
       )}
+      {mailboxOpen && (
+        <MailboxModal
+          conversations={conversations}
+          onSelect={(s) => {
+            setMailboxOpen(false);
+            setSelection(s);
+          }}
+          onClose={() => setMailboxOpen(false)}
+          onRefreshConversations={refreshAll}
+        />
+      )}
     </div>
   );
 }
+

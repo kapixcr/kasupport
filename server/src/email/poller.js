@@ -463,6 +463,21 @@ class EmailPoller {
     }
   }
 
+  async syncNow() {
+    if (!this.config) {
+      throw new Error('Lector IMAP no configurado en variables de entorno');
+    }
+    const beforeCount = this.processedCount;
+    await this.poll();
+    return {
+      success: true,
+      lastPollTime: this.lastPollTime,
+      newlyProcessed: this.processedCount - beforeCount,
+      totalProcessed: this.processedCount,
+      lastError: this.lastError,
+    };
+  }
+
   getStatus() {
     return {
       enabled: !!this.config,
@@ -477,3 +492,4 @@ class EmailPoller {
 }
 
 module.exports = new EmailPoller();
+

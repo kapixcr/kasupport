@@ -771,6 +771,16 @@ app.get('/api/email/status', requireAuth, async (_req, res) => {
   });
 });
 
+app.post('/api/email/sync', requireAuth, async (_req, res) => {
+  try {
+    const result = await emailPoller.syncNow();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 
 app.patch('/api/conversations/:id', requireAuth, async (req, res) => {
   const { status } = req.body || {};

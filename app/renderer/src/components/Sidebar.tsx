@@ -56,6 +56,7 @@ interface Props {
   unreads?: Record<number, number>;
   onNewMeeting?: () => void;
   onOpenCalendar?: () => void;
+  onOpenMailbox?: () => void;
 }
 
 export function Sidebar({
@@ -79,7 +80,9 @@ export function Sidebar({
   onSearchSelect,
   onNewMeeting,
   onOpenCalendar,
+  onOpenMailbox,
 }: Props) {
+
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [dmPickerOpen, setDmPickerOpen] = useState(false);
@@ -165,7 +168,24 @@ export function Sidebar({
             </button>
           )}
         </div>
+        {onOpenMailbox && (
+          <button
+            onClick={onOpenMailbox}
+            className="w-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-white border border-indigo-500/30 font-medium text-xs rounded-xl py-2 px-3 flex items-center justify-between transition-all active:scale-[0.98] shadow-xs"
+          >
+            <span className="flex items-center gap-2">
+              <Mail className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Buzón de Soporte</span>
+            </span>
+            <span className="bg-indigo-500/30 text-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {conversations.filter((c) => c.source === "email").length > 0
+                ? `${conversations.filter((c) => c.source === "email").length} correos`
+                : "soporte@"}
+            </span>
+          </button>
+        )}
       </div>
+
 
       {/* Navegación y Listados */}
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-5 custom-scrollbar">

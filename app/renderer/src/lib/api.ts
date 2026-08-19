@@ -278,7 +278,7 @@ export const api = {
       body: JSON.stringify({ agentId }),
     }),
 
-  // Estado del correo IMAP/SMTP
+  // Estado y Sincronización del correo IMAP/SMTP
   emailStatus: () =>
     req<{
       poller: {
@@ -295,6 +295,15 @@ export const api = {
         from: string;
       };
     }>("/api/email/status"),
+  emailSync: () =>
+    req<{
+      success: boolean;
+      newlyProcessed: number;
+      totalProcessed: number;
+      lastPollTime: string;
+      lastError: string | null;
+    }>("/api/email/sync", { method: "POST" }),
+
 
 
   // Búsqueda global
