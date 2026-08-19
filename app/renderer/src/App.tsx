@@ -311,6 +311,7 @@ export default function App() {
     socket.on("typing", onTyping);
     socket.on("conversation:new", onNewConversation);
     socket.on("conversation:update", refresh);
+    socket.on("conversation:delete", refresh);
     socket.on("channel:new", onChannelNew);
     socket.on("channel:update", refresh);
     socket.on("channel:delete", refresh);
@@ -330,6 +331,8 @@ export default function App() {
       socket.off("typing", onTyping);
       socket.off("conversation:new", onNewConversation);
       socket.off("conversation:update", refresh);
+      socket.off("conversation:delete", refresh);
+
       socket.off("channel:new", onChannelNew);
       socket.off("channel:update", refresh);
       socket.off("channel:delete", refresh);

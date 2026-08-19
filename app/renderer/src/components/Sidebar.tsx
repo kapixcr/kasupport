@@ -89,15 +89,19 @@ export function Sidebar({
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusEmoji, setStatusEmoji] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [showClosedTickets, setShowClosedTickets] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isSelected = (kind: Selection["kind"], id: number) =>
     selection?.kind === kind && selection.id === id;
 
   const convsByDept = (deptId?: number) =>
-    conversations.filter((c) =>
-      deptId ? c.department_id === deptId : !c.department_id
-    );
+    conversations.filter((c) => {
+      const matchDept = deptId ? c.department_id === deptId : !c.department_id;
+      if (!matchDept) return false;
+      return showClosedTickets ? true : c.status !== "closed";
+    });
+
 
   const openStatusEditor = () => {
     setStatusEmoji(agent.status_emoji || "");
@@ -271,8 +275,14 @@ export function Sidebar({
         <section>
           <header className="px-2.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-zinc-400/90 mb-1">
             <span>Tickets & Soporte</span>
-            <span className="text-[10px] text-zinc-500 normal-case font-normal">Web & Correo</span>
+            <button
+              onClick={() => setShowClosedTickets((v) => !v)}
+              className="text-[10px] text-zinc-400 hover:text-zinc-200 transition-colors lowercase font-normal"
+            >
+              {showClosedTickets ? "ocultar cerrados" : "ver cerrados"}
+            </button>
           </header>
+
           {departments.map((d) => {
             const convs = convsByDept(d.id);
             const openCount = convs.filter((c) => c.status === "open").length;

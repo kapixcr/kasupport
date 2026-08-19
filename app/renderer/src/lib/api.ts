@@ -316,6 +316,16 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  deleteConversation: (id: number) =>
+    req<{ ok: boolean; id: number }>(`/api/conversations/${id}`, {
+      method: "DELETE",
+    }),
+  bulkDeleteConversations: (options: { ids?: number[]; onlyClosed?: boolean }) =>
+    req<{ ok: boolean; deletedCount: number }>("/api/conversations/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify(options),
+    }),
+
   messages: (channelId: number) => req<Message[]>(`/api/channels/${channelId}/messages`),
   sendMessage: (channelId: number, body: string, kind: "text" | "sticker" | "image" | "file" = "text", parentId?: number) =>
     req<Message>(`/api/channels/${channelId}/messages`, {

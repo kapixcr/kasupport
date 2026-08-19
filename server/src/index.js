@@ -798,6 +798,68 @@ app.patch('/api/conversations/:id', requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
+app.delete('/api/conversations/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const convRow = await client.query('SELECT channel_id FROM conversations WHERE id = $1', [id]);
+    const channelId = convRow.rows[0]?.channel_id;
+
+    await client.query('DELETE FROM conversations WHERE id = $1', [id]);
+    if (channelId) {
+      await client.query('DELETE FROM channels WHERE id = $1', [channelId]);
+    }
+    await client.query('COMMIT');
+
+    io.to('agents').emit('conversation:delete', { id: Number(id), channelId });
+    res.json({ ok: true, id: Number(id) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/conversations/bulk-delete', requireAuth, async (req, res) => {
+  const { ids, onlyClosed } = req.body || {};
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    let toDelete = [];
+    if (onlyClosed) {
+      const rows = await client.query("SELECT id, channel_id FROM conversations WHERE status = 'closed'");
+      toDelete = rows.rows;
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      const rows = await client.query('SELECT id, channel_id FROM conversations WHERE id = ANY($1::int[])', [ids]);
+      toDelete = rows.rows;
+    }
+
+    if (toDelete.length > 0) {
+      const deleteIds = toDelete.map((c) => c.id);
+      const deleteChannelIds = toDelete.map((c) => c.channel_id).filter(Boolean);
+
+      await client.query('DELETE FROM conversations WHERE id = ANY($1::int[])', [deleteIds]);
+      if (deleteChannelIds.length > 0) {
+        await client.query('DELETE FROM channels WHERE id = ANY($1::int[])', [deleteChannelIds]);
+      }
+      for (const item of toDelete) {
+        io.to('agents').emit('conversation:delete', { id: item.id, channelId: item.channel_id });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ ok: true, deletedCount: toDelete.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
 /* ------------------------------ widget de soporte ----------------------------- */
 /* Estas rutas son PÚBLICAS: las usa el visitante desde la página del cliente.  */
 

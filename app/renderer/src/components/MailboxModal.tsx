@@ -9,7 +9,11 @@ import {
   MessageSquare,
   ArrowUpRight,
   Building2,
+  Trash2,
+  CheckCircle2,
+  RotateCcw,
 } from "lucide-react";
+
 
 interface Props {
   conversations: Conversation[];
@@ -28,6 +32,7 @@ export function MailboxModal({
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -47,14 +52,60 @@ export function MailboxModal({
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Estás seguro de eliminar el ticket #${id}? Esta acción borrará el historial de este correo.`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await api.deleteConversation(id);
+      onRefreshConversations();
+    } catch (err: any) {
+      alert(`No se pudo eliminar: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteClosed = async () => {
+    const closedCount = conversations.filter((c) => c.status === "closed").length;
+    if (closedCount === 0) {
+      alert("No hay tickets cerrados para eliminar.");
+      return;
+    }
+    if (!window.confirm(`¿Deseas eliminar permanentemente los ${closedCount} tickets cerrados del sistema?`)) {
+      return;
+    }
+    setSyncing(true);
+    try {
+      const res = await api.bulkDeleteConversations({ onlyClosed: true });
+      setSyncMessage(`✓ Se eliminaron ${res.deletedCount} tickets cerrados.`);
+      onRefreshConversations();
+    } catch (err: any) {
+      setSyncMessage(`× Error al eliminar: ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleToggleStatus = async (e: React.MouseEvent, id: number, currentStatus: string) => {
+    e.stopPropagation();
+    const nextStatus = currentStatus === "closed" ? "open" : "closed";
+    try {
+      await api.setConversationStatus(id, nextStatus);
+      onRefreshConversations();
+    } catch (err: any) {
+      alert(`No se pudo cambiar el estado: ${err.message}`);
+    }
+  };
+
   const filtered = conversations.filter((c) => {
-    // Filtro por tipo o estado
     if (filter === "email" && c.source !== "email") return false;
     if (filter === "widget" && c.source === "email") return false;
     if (filter === "open" && c.status === "closed") return false;
     if (filter === "closed" && c.status !== "closed") return false;
 
-    // Filtro por búsqueda
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -67,6 +118,7 @@ export function MailboxModal({
 
   const emailCount = conversations.filter((c) => c.source === "email").length;
   const openCount = conversations.filter((c) => c.status === "open").length;
+  const closedCount = conversations.filter((c) => c.status === "closed").length;
 
   return (
     <div
@@ -91,12 +143,23 @@ export function MailboxModal({
                 </span>
               </h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {conversations.length} tickets en total · {emailCount} por correo · {openCount} abiertos
+                {conversations.length} tickets en total · {openCount} abiertos · {closedCount} cerrados
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {closedCount > 0 && (
+              <button
+                onClick={handleDeleteClosed}
+                disabled={syncing}
+                title="Eliminar todos los tickets que ya están cerrados"
+                className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-rose-50 dark:bg-zinc-800 dark:hover:bg-rose-950/40 text-zinc-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 transition-all border border-zinc-200/60 dark:border-zinc-700/60"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Borrar Cerrados ({closedCount})</span>
+              </button>
+            )}
             <button
               onClick={handleSync}
               disabled={syncing}
@@ -130,10 +193,10 @@ export function MailboxModal({
             {(
               [
                 ["all", `Todos (${conversations.length})`],
+                ["open", `Abiertos (${openCount})`],
+                ["closed", `Cerrados (${closedCount})`],
                 ["email", `✉️ Correo (${emailCount})`],
                 ["widget", `💬 Web (${conversations.length - emailCount})`],
-                ["open", `Abiertos (${openCount})`],
-                ["closed", `Cerrados (${conversations.length - openCount})`],
               ] as [typeof filter, string][]
             ).map(([key, label]) => (
               <button
@@ -174,16 +237,17 @@ export function MailboxModal({
                 <Mail className="w-6 h-6" />
               </div>
               <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                No se encontraron tickets en esta vista
+                No hay tickets en esta vista
               </p>
               <p className="text-xs text-zinc-400 max-w-sm mt-1">
-                Cuando los clientes envíen correos a <strong>soporte@kapix.co.cr</strong> o escriban por el widget web, aparecerán organizados aquí.
+                La bandeja está limpia. Los nuevos correos que lleguen a <strong>soporte@kapix.co.cr</strong> se listarán aquí automáticamente.
               </p>
             </div>
           ) : (
             filtered.map((cv) => {
               const isEmail = cv.source === "email";
               const isOpen = cv.status === "open";
+              const isDeleting = deletingId === cv.id;
               return (
                 <div
                   key={cv.id}
@@ -191,7 +255,9 @@ export function MailboxModal({
                     onSelect({ kind: "conversation", id: cv.id, channelId: cv.channel_id });
                     onClose();
                   }}
-                  className="p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all flex items-start gap-3.5 group"
+                  className={`p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all flex items-start gap-3.5 group ${
+                    isDeleting ? "opacity-30 pointer-events-none" : ""
+                  }`}
                 >
                   <div
                     className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-bold text-xs ${
@@ -216,19 +282,34 @@ export function MailboxModal({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Botón rápido para abrir/cerrar */}
+                        <button
+                          onClick={(e) => handleToggleStatus(e, cv.id, cv.status)}
+                          title={isOpen ? "Marcar como cerrado" : "Reabrir ticket"}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${
                             isOpen
-                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
-                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200"
+                              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200"
                           }`}
                         >
-                          {cv.status}
-                        </span>
+                          {isOpen ? <CheckCircle2 className="w-3 h-3" /> : <RotateCcw className="w-3 h-3" />}
+                          <span>{cv.status}</span>
+                        </button>
+
                         <span className="text-[10px] text-zinc-400">
                           {new Date(cv.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </span>
+
+                        {/* Botón para eliminar ticket individual */}
+                        <button
+                          onClick={(e) => handleDelete(e, cv.id)}
+                          title="Eliminar ticket definitivamente"
+                          className="p-1 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
                         <ArrowUpRight className="w-3.5 h-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
