@@ -321,7 +321,74 @@ export function Sidebar({
               </div>
             );
           })}
+
+          {/* Tickets sin departamento específico o generales */}
+          {(() => {
+            const deptIds = new Set(departments.map((d) => d.id));
+            const orphanConvs = conversations.filter((c) => !c.department_id || !deptIds.has(c.department_id));
+            if (orphanConvs.length === 0) return null;
+            return (
+              <div className="mt-2.5">
+                <div className="px-2.5 py-1 text-xs font-semibold text-zinc-400 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <Mail className="w-3 h-3 text-indigo-400" />
+                    Bandeja General
+                  </span>
+                  <span className="bg-indigo-500/20 text-indigo-300 text-[10px] rounded-full px-1.5 py-0.2 font-bold">
+                    {orphanConvs.length}
+                  </span>
+                </div>
+                <ul className="space-y-0.5 mt-0.5">
+                  {orphanConvs.map((cv) => {
+                    const count = unreads[cv.channel_id] || 0;
+                    const active = isSelected("conversation", cv.id);
+                    return (
+                      <li key={cv.id}>
+                        <button
+                          onClick={() =>
+                            onSelect({ kind: "conversation", id: cv.id, channelId: cv.channel_id })
+                          }
+                          className={`w-full text-left px-2.5 py-1.5 text-xs rounded-xl transition-all flex items-center gap-2 ${
+                            active
+                              ? "text-white font-semibold"
+                              : "text-zinc-300 hover:text-white hover:bg-white/[0.06]"
+                          }`}
+                          style={
+                            active
+                              ? {
+                                  background: theme.accent,
+                                  boxShadow: theme.glow ? `0 0 14px ${theme.glow}` : undefined,
+                                }
+                              : undefined
+                          }
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[cv.status] || STATUS_DOT.open}`} />
+                          {cv.source === "email" && (
+                            <span title="Ticket recibido por correo">
+                              <Mail className="w-3 h-3 text-indigo-300 shrink-0" />
+                            </span>
+                          )}
+                          <span
+                            className="truncate flex-1"
+                            title={cv.subject ? `${cv.visitor_name}: ${cv.subject}` : cv.visitor_name}
+                          >
+                            {cv.visitor_name}
+                          </span>
+                          {count > 0 && (
+                            <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[18px] text-center shrink-0 shadow-sm animate-pulse">
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
         </section>
+
 
         {/* Mensajes Directos */}
         <section>

@@ -77,12 +77,15 @@ class EmailPoller {
         markSeen: true, // Marca como leído para no re-procesar
       };
 
+      console.log(`[IMAP] Sondeando INBOX (${new Date().toLocaleTimeString()})...`);
       const messages = await connection.search(searchCriteria, fetchOptions);
       this.lastPollTime = new Date().toISOString();
       this.lastError = null;
 
-      if (messages.length > 0) {
-        console.log(`📩 Se encontraron ${messages.length} correos nuevos en la bandeja de entrada`);
+      if (messages.length === 0) {
+        console.log(`[IMAP] Sin correos nuevos no leídos (UNSEEN). Esperando...`);
+      } else {
+        console.log(`[IMAP] 📩 Se encontraron ${messages.length} correos nuevos en la bandeja de entrada`);
       }
 
       for (const item of messages) {
@@ -152,23 +155,35 @@ class EmailPoller {
     // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), verificar que esté dirigido al buzón de soporte
     const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
     if (filterTo) {
-      const toAddresses = [
-        ...(parsed.to?.value || []).map((t) => (t.address || '').toLowerCase()),
-        ...(parsed.cc?.value || []).map((c) => (c.address || '').toLowerCase()),
-        ...(parsed.bcc?.value || []).map((b) => (b.address || '').toLowerCase()),
-        String(parsed.headers?.get('delivered-to') || '').toLowerCase(),
-        String(parsed.headers?.get('x-original-to') || '').toLowerCase(),
-        String(parsed.headers?.get('x-forwarded-to') || '').toLowerCase(),
-        String(parsed.headers?.get('envelope-to') || '').toLowerCase(),
-      ];
+      const toAddresses = [];
+      if (parsed.to?.value) {
+        parsed.to.value.forEach((t) => t.address && toAddresses.push(t.address.toLowerCase()));
+      }
+      if (parsed.cc?.value) {
+        parsed.cc.value.forEach((c) => c.address && toAddresses.push(c.address.toLowerCase()));
+      }
+      if (parsed.bcc?.value) {
+        parsed.bcc.value.forEach((b) => b.address && toAddresses.push(b.address.toLowerCase()));
+      }
+      if (parsed.headers) {
+        for (const [key, val] of parsed.headers.entries()) {
+          const k = String(key).toLowerCase();
+          if (k.includes('to') || k.includes('delivered') || k.includes('recipient') || k.includes('forward')) {
+            const strVal = typeof val === 'object' && val?.value ? JSON.stringify(val.value) : String(val || '');
+            toAddresses.push(strVal.toLowerCase());
+          }
+        }
+      }
+
       const isTargeted = toAddresses.length === 0 || toAddresses.some((addr) => addr.includes(filterTo));
       if (!isTargeted) {
-        console.log(`ℹ Correo ignorado (no está dirigido a ${filterTo}): "${subject}" de ${senderEmail}. Destinatarios encontrados:`, toAddresses);
+        console.log(`ℹ Correo ignorado (no coincide con EMAIL_FILTER_TO=${filterTo}): "${subject}" de ${senderEmail}. Destinatarios:`, toAddresses);
         return;
       }
     }
 
     console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
+
 
 
 
