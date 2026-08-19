@@ -138,9 +138,24 @@ class EmailPoller {
    * Procesa un correo recibido, extrayendo datos y convirtiéndolo en ticket o respuesta
    */
   async processIncomingEmail(parsed) {
-    const sender = parsed.from?.value?.[0];
-    const senderEmail = (sender?.address || '').toLowerCase().trim();
-    const senderName = (sender?.name || senderEmail.split('@')[0] || 'Cliente').trim();
+    let sender = parsed.from?.value?.[0];
+    let senderEmail = (sender?.address || '').toLowerCase().trim();
+    let senderName = (sender?.name || senderEmail.split('@')[0] || 'Cliente').trim();
+
+    // Si viene a través de Google Groups / buzón colaborativo, el cliente real viene en Reply-To o X-Original-Sender
+    const replyToSender = parsed.replyTo?.value?.[0];
+    if (replyToSender?.address && !replyToSender.address.includes('groups.google.com') && !replyToSender.address.includes('noreply')) {
+      senderEmail = replyToSender.address.toLowerCase().trim();
+      if (replyToSender.name && !replyToSender.name.includes('Google Groups')) {
+        senderName = replyToSender.name.trim();
+      }
+    } else if (parsed.headers?.get('x-original-sender')) {
+      const origSender = String(parsed.headers.get('x-original-sender')).toLowerCase().trim();
+      if (origSender && origSender.includes('@') && !origSender.includes('groups.google.com')) {
+        senderEmail = origSender;
+      }
+    }
+
     const subject = (parsed.subject || 'Sin Asunto').trim();
     let messageId = parsed.messageId || null;
     const inReplyTo = parsed.inReplyTo || null;
@@ -160,6 +175,7 @@ class EmailPoller {
     if (!senderEmail) {
       return;
     }
+
 
     // Generar un ID único determinístico si el cliente de correo no envió Message-ID
     if (!messageId) {
@@ -364,10 +380,20 @@ class EmailPoller {
         visitor = newVis.rows[0];
       }
 
-      // 2. Obtener departamento por defecto
-      const deptRow = await client.query('SELECT id, name FROM departments ORDER BY id ASC LIMIT 1');
-      const deptId = deptRow.rows[0]?.id || null;
-      const deptName = deptRow.rows[0]?.name || 'General';
+      // 2. Obtener departamento adecuado (priorizar Soporte Técnico o Soporte)
+      const deptSearch = await client.query(
+        `SELECT id, name FROM departments 
+          WHERE LOWER(name) LIKE '%soporte%' OR LOWER(slug) LIKE '%soporte%'
+          ORDER BY id ASC LIMIT 1`
+      );
+      let deptId = deptSearch.rows[0]?.id;
+      let deptName = deptSearch.rows[0]?.name;
+      if (!deptId) {
+        const anyDept = await client.query('SELECT id, name FROM departments ORDER BY id ASC LIMIT 1');
+        deptId = anyDept.rows[0]?.id || null;
+        deptName = anyDept.rows[0]?.name || 'General';
+      }
+
 
       // 3. Crear canal de soporte
       const channel = (
