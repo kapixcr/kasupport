@@ -142,30 +142,34 @@ class EmailPoller {
       return;
     }
 
-    // Evitar procesar correos enviados por nosotros mismos (cuenta principal o buzón de soporte)
-    const selfEmail = (this.config.imap.user || '').toLowerCase();
+    // Evitar procesar correos enviados por el propio buzón del sistema (prevención de bucles)
     const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase();
-    if (senderEmail === selfEmail || senderEmail === supportEmail || senderEmail.includes('soporte@kapix.co.cr')) {
+    if (senderEmail === 'soporte@kapix.co.cr' || (supportEmail.includes('soporte@') && senderEmail === supportEmail)) {
+      console.log(`ℹ Correo ignorado (remitente es el buzón del sistema): ${senderEmail}`);
       return;
     }
 
-    // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), ignorar correos personales que no van dirigidos al buzón de soporte
+    // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), verificar que esté dirigido al buzón de soporte
     const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
     if (filterTo) {
       const toAddresses = [
         ...(parsed.to?.value || []).map((t) => (t.address || '').toLowerCase()),
         ...(parsed.cc?.value || []).map((c) => (c.address || '').toLowerCase()),
+        ...(parsed.bcc?.value || []).map((b) => (b.address || '').toLowerCase()),
         String(parsed.headers?.get('delivered-to') || '').toLowerCase(),
         String(parsed.headers?.get('x-original-to') || '').toLowerCase(),
+        String(parsed.headers?.get('x-forwarded-to') || '').toLowerCase(),
+        String(parsed.headers?.get('envelope-to') || '').toLowerCase(),
       ];
-      const isTargeted = toAddresses.some((addr) => addr.includes(filterTo));
+      const isTargeted = toAddresses.length === 0 || toAddresses.some((addr) => addr.includes(filterTo));
       if (!isTargeted) {
-        console.log(`ℹ Correo ignorado (no está dirigido a ${filterTo}): "${subject}" de ${senderEmail}`);
+        console.log(`ℹ Correo ignorado (no está dirigido a ${filterTo}): "${subject}" de ${senderEmail}. Destinatarios encontrados:`, toAddresses);
         return;
       }
     }
 
     console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
+
 
 
     // 1. Detectar si es respuesta a un ticket existente
