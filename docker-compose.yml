@@ -51,8 +51,11 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/public/uploads
+      - stickers_data:/app/public/stickers
     restart: always
 
 volumes:
   postgres_data:
   uploads_data:
+  stickers_data:
+
