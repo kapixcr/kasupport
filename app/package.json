@@ -35,20 +35,22 @@
       },
       "target": [
         {
-          "target": "dmg",
+          "target": "zip",
           "arch": [
-            "x64",
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "dir",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ]
     },
+
     "win": {
       "icon": "build/icon.ico",
       "target": [
