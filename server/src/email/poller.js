@@ -60,6 +60,40 @@ class EmailPoller {
     }, intervalSec * 1000);
   }
 
+  /**
+   * Obtiene la lista de carpetas y etiquetas de Gmail a inspeccionar
+   */
+  async getMailboxesToScan(connection) {
+    const list = ['INBOX'];
+    try {
+      const boxes = await connection.getBoxes();
+      const traverse = (obj, prefix = '') => {
+        for (const key of Object.keys(obj)) {
+          const fullPath = prefix ? `${prefix}${obj[key].delimiter || '/'}${key}` : key;
+          const lower = key.toLowerCase();
+          if (
+            lower.includes('soporte') ||
+            lower.includes('support') ||
+            lower.includes('all mail') ||
+            lower.includes('todos')
+          ) {
+            if (!list.includes(fullPath)) list.push(fullPath);
+          }
+          if (obj[key].children) {
+            traverse(obj[key].children, fullPath);
+          }
+        }
+      };
+      traverse(boxes);
+    } catch (e) {
+      console.warn('No se pudo listar etiquetas completas de Gmail:', e.message);
+    }
+    return list;
+  }
+
+  /**
+   * Ejecuta una ronda de sondeo de correo
+   */
   async poll() {
     if (!this.config || this.isPolling) return;
     this.isPolling = true;
@@ -67,11 +101,7 @@ class EmailPoller {
     let connection = null;
     try {
       connection = await imaps.connect(this.config);
-      await connection.openBox('INBOX');
 
-      // Sondeo inteligente: buscar no leídos Y los correos recientes de los últimos 2 días
-
-      // Así ningún correo se pierde aunque el usuario lo haya abierto en Gmail o móvil
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - 2);
 
@@ -81,46 +111,50 @@ class EmailPoller {
         markSeen: true,
       };
 
-      console.log(`[IMAP] Sondeando INBOX (${new Date().toLocaleTimeString()})...`);
+      const mailboxes = await this.getMailboxesToScan(connection);
+      console.log(`[IMAP] Sondeando carpetas (${new Date().toLocaleTimeString()}): ${mailboxes.join(', ')}`);
 
-      const unseenMessages = await connection.search(['UNSEEN'], fetchOptions).catch(() => []);
-      const recentMessages = await connection.search([['SINCE', sinceDate]], fetchOptions).catch(() => []);
+      for (const boxName of mailboxes) {
+        try {
+          await connection.openBox(boxName);
 
-      // Unir mensajes sin duplicar UIDs
-      const seenUids = new Set();
-      const allMessages = [];
-      for (const msg of [...unseenMessages, ...recentMessages]) {
-        const uid = msg.attributes?.uid || msg.seqno;
-        if (!seenUids.has(uid)) {
-          seenUids.add(uid);
-          allMessages.push(msg);
+          const unseenMessages = await connection.search(['UNSEEN'], fetchOptions).catch(() => []);
+          const recentMessages = await connection.search([['SINCE', sinceDate]], fetchOptions).catch(() => []);
+
+          const boxSeenUids = new Set();
+          const boxMessages = [];
+          for (const msg of [...unseenMessages, ...recentMessages]) {
+            const uid = msg.attributes?.uid || msg.seqno;
+            if (!boxSeenUids.has(uid)) {
+              boxSeenUids.add(uid);
+              boxMessages.push(msg);
+            }
+          }
+
+          if (boxMessages.length > 0) {
+            console.log(`[IMAP] 📩 ${boxMessages.length} correos encontrados en [${boxName}]`);
+            for (const item of boxMessages) {
+              try {
+                const rawPart = item.parts.find((p) => p.which === '');
+                const rawBody = rawPart ? rawPart.body : '';
+                if (!rawBody) continue;
+
+                const parsed = await simpleParser(rawBody);
+                await this.processIncomingEmail(parsed);
+              } catch (msgErr) {
+                console.error(`× Error procesando correo en [${boxName}]:`, msgErr);
+              }
+            }
+          }
+        } catch (boxErr) {
+          console.warn(`[IMAP] No se pudo acceder a [${boxName}]:`, boxErr.message);
         }
       }
 
       this.lastPollTime = new Date().toISOString();
       this.lastError = null;
-
-      if (allMessages.length === 0) {
-        console.log(`[IMAP] Sin correos en INBOX.`);
-      } else {
-        console.log(`[IMAP] Verificando ${allMessages.length} correos recientes en INBOX...`);
-      }
-
-      for (const item of allMessages) {
-        try {
-          const rawPart = item.parts.find((p) => p.which === '');
-          const rawBody = rawPart ? rawPart.body : '';
-          if (!rawBody) continue;
-
-          const parsed = await simpleParser(rawBody);
-          await this.processIncomingEmail(parsed);
-        } catch (msgErr) {
-          console.error('× Error al procesar correo individual:', msgErr);
-        }
-      }
     } catch (err) {
       this.lastError = err.message;
-      // Solo mostrar advertencia si no es timeout transitorio
       if (!err.message?.includes('Timed out')) {
         console.error('× Error de conexión en sondeo IMAP:', err.message);
       }
@@ -133,6 +167,7 @@ class EmailPoller {
       this.isPolling = false;
     }
   }
+
 
   /**
    * Procesa un correo recibido, extrayendo datos y convirtiéndolo en ticket o respuesta
