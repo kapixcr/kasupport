@@ -70,24 +70,34 @@ class EmailService {
       </div>
     `;
 
-    try {
-      const info = await this.transporter.sendMail({
-        from: this.from,
-        replyTo: this.replyTo,
-        to,
-        subject: fullSubject,
-        text: textBody,
-        html: htmlBody,
-        inReplyTo: inReplyTo || undefined,
-        references: references || inReplyTo || undefined,
-      });
+    let validInReplyTo = inReplyTo;
+    if (validInReplyTo && (!validInReplyTo.includes('@') || validInReplyTo.startsWith('hash:') || validInReplyTo.length < 5)) {
+      validInReplyTo = undefined;
+    }
 
+    const mailOptions = {
+      from: this.from,
+      replyTo: this.replyTo,
+      to,
+      subject: fullSubject,
+      text: textBody,
+      html: htmlBody,
+    };
+
+    if (validInReplyTo) {
+      mailOptions.inReplyTo = validInReplyTo;
+      mailOptions.references = validInReplyTo;
+    }
+
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
       console.log(`✓ Correo de respuesta enviado a ${to} para Ticket #${ticketId} (Message-ID: ${info.messageId})`);
       return { sent: true, messageId: info.messageId };
     } catch (err) {
       console.error(`× Error al enviar correo a ${to}:`, err.message);
       return { sent: false, error: err.message };
     }
+
   }
 
   /**

@@ -647,7 +647,8 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
           [conv.rows[0].id]
         );
         if (convDetails[0]?.visitor_email) {
-          await emailService.sendAgentReply({
+          console.log(`[SMTP] Despachando respuesta de agente (${req.agent.name}) al cliente (${convDetails[0].visitor_email}) para Ticket #${convDetails[0].id}...`);
+          const resEmail = await emailService.sendAgentReply({
             to: convDetails[0].visitor_email,
             subject: convDetails[0].subject || 'Soporte',
             body: String(body).trim(),
@@ -655,12 +656,14 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
             ticketId: convDetails[0].id,
             agentName: req.agent.name,
           });
+          console.log('[SMTP] Resultado de envío:', resEmail);
         }
       } catch (err) {
         console.error('× Error al despachar respuesta por correo SMTP:', err.message);
       }
     })();
   }
+
 
   res.status(201).json(message);
 });
