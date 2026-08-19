@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS subject TEXT;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'widget';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_agent_id INT REFERENCES agents(id) ON DELETE SET NULL;
+
 
 CREATE TABLE IF NOT EXISTS messages (
   id              SERIAL PRIMARY KEY,

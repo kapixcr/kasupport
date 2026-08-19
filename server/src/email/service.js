@@ -55,17 +55,17 @@ class EmailService {
     const textBody = `${body}\n\n---\nRespuesta enviada por ${agentName || 'Equipo de Soporte'} a través de Kasupport.\nPuedes responder directamente a este correo para continuar la conversación.`;
 
     const htmlBody = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #4f46e5; padding: 16px 20px; border-radius: 8px 8px 0 0; color: white;">
-          <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Kasupport — Soporte</h2>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #191E29; line-height: 1.6; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+        <div style="background-color: #191E29; padding: 20px 24px; border-bottom: 3px solid #01C38D; color: white; display: flex; align-items: center;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: #ffffff;">Kapix Soporte</h2>
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; padding: 24px;">
-          <p style="margin-top: 0; font-size: 15px; color: #374151; white-space: pre-wrap;">${escapeHtml(body)}</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0 16px;" />
-          <p style="font-size: 12px; color: #6b7280; margin: 0;">
-            Respuesta de <strong>${escapeHtml(agentName || 'Equipo de Soporte')}</strong> sobre el <strong>Ticket #${ticketId}</strong>.<br />
-            Puedes responder directamente a este correo para agregar más información.
-          </p>
+        <div style="background-color: #ffffff; padding: 28px 24px;">
+          <p style="margin-top: 0; font-size: 15px; color: #191E29; white-space: pre-wrap; line-height: 1.6;">${escapeHtml(body)}</p>
+          <hr style="border: none; border-top: 1px solid #edf2f7; margin: 28px 0 16px;" />
+          <div style="font-size: 12px; color: #64748b; margin: 0;">
+            <p style="margin: 0 0 4px 0;">Respuesta de <strong>${escapeHtml(agentName || 'Equipo de Soporte')}</strong> • <strong>Ticket #${ticketId}</strong></p>
+            <p style="margin: 0; color: #94a3b8;">Puedes responder directamente a este correo para continuar la conversación.</p>
+          </div>
         </div>
       </div>
     `;
@@ -109,36 +109,37 @@ class EmailService {
 
     const fullSubject = `[Ticket #${ticketId}] Recibido: ${subject || 'Solicitud de soporte'}`;
 
-    const textBody = `Hola ${name || 'Estimado(a)'},\n\nHemos recibido tu solicitud de soporte con el asunto "${subject || 'Sin asunto'}".\nTu número de ticket asignado es #${ticketId}.\n\nUno de nuestros agentes de soporte atenderá tu consulta a la brevedad.\nPuedes responder directamente a este correo si deseas añadir más detalles.\n\nSaludos,\nEquipo de Soporte Kapix`;
+    const textBody = `Hola ${name || 'Estimado(a)'},\n\nHemos recibido tu solicitud de soporte con el asunto "${subject || 'Sin asunto'}".\nTu número de ticket asignado es #${ticketId}.\n\nUno de nuestros agentes de soporte atenderá tu consulta a la brevedad.\nPuedes responder directamente a este correo si deseas añadir más detalles.\n\nSaludos,\nKapix Soporte`;
 
     const htmlBody = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.6; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #4f46e5; padding: 16px 20px; border-radius: 8px 8px 0 0; color: white;">
-          <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Solicitud Recibida — Ticket #${ticketId}</h2>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #191E29; line-height: 1.6; max-width: 600px; margin: 0 auto; background-color: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+        <div style="background-color: #191E29; padding: 20px 24px; border-bottom: 3px solid #01C38D; color: white;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: #ffffff;">Kapix Soporte</h2>
         </div>
-        <div style="background-color: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; padding: 24px;">
-          <p style="margin-top: 0; font-size: 15px; color: #374151;">
-            Hola <strong>${escapeHtml(name || 'Estimado(a)')}</strong>,
+        <div style="background-color: #ffffff; padding: 28px 24px;">
+          <p style="margin-top: 0; font-size: 16px; color: #191E29; font-weight: 600;">
+            Hola ${escapeHtml(name || 'Estimado(a)')},
           </p>
-          <p style="font-size: 14px; color: #4b5563;">
-            Hemos recibido tu mensaje con el asunto <em>"${escapeHtml(subject || 'Sin asunto')}"</em>.
+          <p style="font-size: 14px; color: #475569; margin: 8px 0 16px;">
+            Hemos recibido tu mensaje con el asunto: <em>"${escapeHtml(subject || 'Sin asunto')}"</em>
           </p>
-          <div style="background-color: #f3f4f6; border-left: 4px solid #4f46e5; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
-            <p style="margin: 0; font-size: 14px; color: #1f2937;"><strong>Ticket #:</strong> ${ticketId}</p>
-            <p style="margin: 4px 0 0; font-size: 14px; color: #4b5563;"><strong>Estado:</strong> Abierto y asignado a nuestro equipo</p>
+          <div style="background-color: #f0fdf4; border-left: 4px solid #01C38D; padding: 14px 18px; margin: 20px 0; border-radius: 6px;">
+            <p style="margin: 0; font-size: 14px; color: #191E29;"><strong>Número de Ticket:</strong> #${ticketId}</p>
+            <p style="margin: 4px 0 0; font-size: 14px; color: #01C38D; font-weight: 600;">Estado: Abierto y asignado a nuestro equipo</p>
           </div>
-          <p style="font-size: 14px; color: #4b5563;">
-            Uno de nuestros agentes responderá a tu solicitud a la brevedad. Puedes responder directamente a este correo para enviar más detalles.
+          <p style="font-size: 14px; color: #475569; line-height: 1.5;">
+            Uno de nuestros agentes responderá a tu solicitud a la brevedad. Puedes responder directamente a este correo para agregar detalles adicionales.
           </p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0 16px;" />
-          <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-            Kasupport • Kapix Soporte
+          <hr style="border: none; border-top: 1px solid #edf2f7; margin: 28px 0 16px;" />
+          <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+            Kapix Soporte • <a href="https://kapix.co.cr" style="color: #01C38D; text-decoration: none;">kapix.co.cr</a>
           </p>
         </div>
       </div>
     `;
 
     try {
+
       await this.transporter.sendMail({
         from: this.from,
         replyTo: this.replyTo,

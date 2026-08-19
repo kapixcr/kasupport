@@ -171,9 +171,12 @@ export interface Conversation {
   department_id?: number;
   subject?: string;
   source?: "widget" | "email";
+  assigned_agent_id?: number | null;
+  assigned_agent_name?: string | null;
   message_count: string;
   last_message?: string;
 }
+
 
 
 /* ------------------------------- auth storage ------------------------------- */
@@ -316,6 +319,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+  assignConversation: (id: number, agentId: number | null) =>
+    req<Conversation>(`/api/conversations/${id}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({ agentId }),
+    }),
   deleteConversation: (id: number) =>
     req<{ ok: boolean; id: number }>(`/api/conversations/${id}`, {
       method: "DELETE",
@@ -325,6 +333,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(options),
     }),
+
 
   messages: (channelId: number) => req<Message[]>(`/api/channels/${channelId}/messages`),
   sendMessage: (channelId: number, body: string, kind: "text" | "sticker" | "image" | "file" = "text", parentId?: number) =>

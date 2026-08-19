@@ -5,7 +5,48 @@ const path = require('path');
 const crypto = require('crypto');
 const emailService = require('./service');
 
+/**
+ * Limpia el contenido de correos entrantes quitando citas anidadas y firmas de Google Groups
+ */
+function cleanEmailReplyBody(rawText) {
+  if (!rawText) return '';
+  let text = rawText;
+
+  // 1. Quitar firmas y pies de página de Google Groups
+  text = text.replace(/--\s*\r?\nHas recibido este mensaje porque estás suscrito al grupo[\s\S]*$/i, '');
+  text = text.replace(/Para cancelar la suscripción a este grupo y dejar de recibir sus mensajes[\s\S]*$/i, '');
+  text = text.replace(/Para ver este debate, visita\s+https:\/\/groups\.google\.com[\s\S]*$/i, '');
+
+  // 2. Quitar bloques de cita estándar (El ... escribió: / On ... wrote: / De: ... Enviado el: ...)
+  const splitPatterns = [
+    /\r?\n(?:El|On|Le)\s+[^\n]+(?:\r?\n)?[^\n]+(?:escribió|wrote|a écrit|schrieb)\s*:\s*[\s\S]*$/i,
+    /\r?\n_{5,}[\s\S]*$/i,
+    /\r?\n-{5,}[\s\S]*$/i,
+    /\r?\nDe:\s+[^\n]+\r?\nEnviado el:\s+[^\n]+[\s\S]*$/i,
+    /\r?\nFrom:\s+[^\n]+\r?\nSent:\s+[^\n]+[\s\S]*$/i,
+  ];
+
+  for (const pat of splitPatterns) {
+    if (pat.test(text)) {
+      text = text.replace(pat, '');
+      break;
+    }
+  }
+
+  // 3. Quitar líneas de cita '>'
+  const lines = text.split('\n');
+  const cleanLines = [];
+  for (const line of lines) {
+    if (line.trim().startsWith('>')) continue;
+    cleanLines.push(line);
+  }
+
+  const cleaned = cleanLines.join('\n').trim();
+  return cleaned || rawText.trim();
+}
+
 class EmailPoller {
+
   constructor() {
     this.intervalId = null;
     this.isPolling = false;
@@ -203,9 +244,14 @@ class EmailPoller {
     if (!body && parsed.html) {
       body = parsed.html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
     }
+
+    // Limpiar citas repetidas de correos anteriores y pie de Google Groups
+    body = cleanEmailReplyBody(body);
+
     if (!body) {
       body = '[Mensaje sin texto en el cuerpo]';
     }
+
 
     if (!senderEmail) {
       return;

@@ -750,15 +750,17 @@ app.post('/api/messages/:id/reactions', requireAuth, async (req, res) => {
 
 app.get('/api/conversations', requireAuth, async (_req, res) => {
   const { rows } = await db.query(
-    `SELECT cv.id, cv.status, cv.created_at, cv.channel_id, cv.subject, cv.source,
+    `SELECT cv.id, cv.status, cv.created_at, cv.channel_id, cv.subject, cv.source, cv.assigned_agent_id,
             v.name AS visitor_name, v.email AS visitor_email, v.phone AS visitor_phone,
             d.name AS department_name, d.id AS department_id,
+            ag.name AS assigned_agent_name,
             (SELECT COUNT(*) FROM messages m WHERE m.channel_id = cv.channel_id) AS message_count,
             (SELECT body FROM messages m WHERE m.channel_id = cv.channel_id
               ORDER BY m.created_at DESC LIMIT 1) AS last_message
        FROM conversations cv
        JOIN visitors v   ON v.id = cv.visitor_id
        LEFT JOIN departments d ON d.id = cv.department_id
+       LEFT JOIN agents ag ON ag.id = cv.assigned_agent_id
       ORDER BY cv.created_at DESC`
   );
   res.json(rows);
@@ -791,12 +793,74 @@ app.patch('/api/conversations/:id', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'status inválido' });
   }
   const { rows } = await db.query(
-    'UPDATE conversations SET status = $1 WHERE id = $2 RETURNING *',
+    `UPDATE conversations SET status = $1 WHERE id = $2
+     RETURNING *, (SELECT name FROM agents WHERE id = conversations.assigned_agent_id) AS assigned_agent_name`,
     [status, req.params.id]
   );
   io.to('agents').emit('conversation:update', rows[0]);
   res.json(rows[0]);
 });
+
+app.patch('/api/conversations/:id/assign', requireAuth, async (req, res) => {
+  const { agentId } = req.body || {};
+  const convId = req.params.id;
+
+  const convRow = await db.query(
+    `SELECT cv.id, cv.channel_id, cv.subject, v.name AS visitor_name, v.email AS visitor_email
+       FROM conversations cv
+       JOIN visitors v ON v.id = cv.visitor_id
+      WHERE cv.id = $1`,
+    [convId]
+  );
+  const conv = convRow.rows[0];
+  if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+
+  const { rows: updated } = await db.query(
+    `UPDATE conversations SET assigned_agent_id = $1 WHERE id = $2
+     RETURNING *, (SELECT name FROM agents WHERE id = $1) AS assigned_agent_name`,
+    [agentId || null, convId]
+  );
+
+  // Notificar por DM si se asignó a otro agente
+  if (agentId && Number(agentId) !== Number(req.agent.id)) {
+    try {
+      const targetAgent = (await db.query('SELECT id, name FROM agents WHERE id = $1', [agentId])).rows[0];
+      if (targetAgent) {
+        // Buscar o crear canal de DM
+        const dmRes = await db.query(
+          `SELECT channel_id FROM dm_members WHERE agent_id = $1
+           INTERSECT
+           SELECT channel_id FROM dm_members WHERE agent_id = $2`,
+          [req.agent.id, agentId]
+        );
+        let dmChannelId = dmRes.rows[0]?.channel_id;
+        if (!dmChannelId) {
+          const newCh = (await db.query(`INSERT INTO channels (name, type) VALUES ($1, 'dm') RETURNING id`, [`dm-${req.agent.id}-${agentId}`])).rows[0];
+          dmChannelId = newCh.id;
+          await db.query('INSERT INTO dm_members (channel_id, agent_id) VALUES ($1, $2), ($1, $3)', [dmChannelId, req.agent.id, agentId]);
+        }
+
+        const dmText = `🔔 **Ticket #${conv.id} Asignado**\nHola ${targetAgent.name}, ${req.agent.name} te ha asignado el ticket de soporte de **${conv.visitor_name}** (*${conv.subject || 'Sin asunto'}*).`;
+        const msg = await insertMessage({
+          channelId: dmChannelId,
+          conversationId: null,
+          authorType: 'agent',
+          authorId: req.agent.id,
+          authorName: req.agent.name,
+          body: dmText,
+          kind: 'text',
+        });
+        broadcastMessage(msg);
+      }
+    } catch (dmErr) {
+      console.error('× Error al notificar asignación por DM:', dmErr);
+    }
+  }
+
+  io.to('agents').emit('conversation:update', updated[0]);
+  res.json(updated[0]);
+});
+
 
 app.delete('/api/conversations/:id', requireAuth, async (req, res) => {
   const { id } = req.params;

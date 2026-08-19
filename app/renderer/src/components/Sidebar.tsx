@@ -90,7 +90,9 @@ export function Sidebar({
   const [statusEmoji, setStatusEmoji] = useState("");
   const [statusText, setStatusText] = useState("");
   const [showClosedTickets, setShowClosedTickets] = useState(false);
+  const [closedLimits, setClosedLimits] = useState<Record<string, number>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+
 
   const isSelected = (kind: Selection["kind"], id: number) =>
     selection?.kind === kind && selection.id === id;
@@ -284,8 +286,12 @@ export function Sidebar({
           </header>
 
           {departments.map((d) => {
-            const convs = convsByDept(d.id);
-            const openCount = convs.filter((c) => c.status === "open").length;
+            const allConvs = convsByDept(d.id);
+            const openCount = allConvs.filter((c) => c.status === "open").length;
+            const limit = closedLimits[String(d.id)] || 10;
+            const visibleConvs = allConvs.slice(0, limit);
+            const remaining = allConvs.length - visibleConvs.length;
+
             return (
               <div key={d.id} className="mt-2.5">
                 <div className="px-2.5 py-1 text-xs font-semibold text-zinc-400 flex items-center justify-between">
@@ -300,10 +306,10 @@ export function Sidebar({
                   )}
                 </div>
                 <ul className="space-y-0.5 mt-0.5">
-                  {convs.length === 0 && (
+                  {allConvs.length === 0 && (
                     <li className="px-3 py-1 text-[11px] text-zinc-500 italic">sin tickets activos</li>
                   )}
-                  {convs.map((cv) => {
+                  {visibleConvs.map((cv) => {
                     const count = unreads[cv.channel_id] || 0;
                     const active = isSelected("conversation", cv.id);
                     return (
@@ -347,6 +353,21 @@ export function Sidebar({
                       </li>
                     );
                   })}
+                  {remaining > 0 && (
+                    <li className="pt-1 px-1">
+                      <button
+                        onClick={() =>
+                          setClosedLimits((prev) => ({
+                            ...prev,
+                            [String(d.id)]: limit + 10,
+                          }))
+                        }
+                        className="w-full py-1 text-center text-[10px] font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                      >
+                        + Ver más ({remaining} restantes)
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </div>
             );
@@ -355,8 +376,16 @@ export function Sidebar({
           {/* Tickets sin departamento específico o generales */}
           {(() => {
             const deptIds = new Set(departments.map((d) => d.id));
-            const orphanConvs = conversations.filter((c) => !c.department_id || !deptIds.has(c.department_id));
+            const orphanConvs = conversations.filter((c) => {
+              const isOrphan = !c.department_id || !deptIds.has(c.department_id);
+              if (!isOrphan) return false;
+              return showClosedTickets ? true : c.status !== "closed";
+            });
             if (orphanConvs.length === 0) return null;
+            const limit = closedLimits["orphan"] || 10;
+            const visibleOrphans = orphanConvs.slice(0, limit);
+            const remaining = orphanConvs.length - visibleOrphans.length;
+
             return (
               <div className="mt-2.5">
                 <div className="px-2.5 py-1 text-xs font-semibold text-zinc-400 flex items-center justify-between">
@@ -369,7 +398,7 @@ export function Sidebar({
                   </span>
                 </div>
                 <ul className="space-y-0.5 mt-0.5">
-                  {orphanConvs.map((cv) => {
+                  {visibleOrphans.map((cv) => {
                     const count = unreads[cv.channel_id] || 0;
                     const active = isSelected("conversation", cv.id);
                     return (
@@ -413,11 +442,27 @@ export function Sidebar({
                       </li>
                     );
                   })}
+                  {remaining > 0 && (
+                    <li className="pt-1 px-1">
+                      <button
+                        onClick={() =>
+                          setClosedLimits((prev) => ({
+                            ...prev,
+                            orphan: limit + 10,
+                          }))
+                        }
+                        className="w-full py-1 text-center text-[10px] font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                      >
+                        + Ver más ({remaining} restantes)
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </div>
             );
           })()}
         </section>
+
 
 
         {/* Mensajes Directos */}

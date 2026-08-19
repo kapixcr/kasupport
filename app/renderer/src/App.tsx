@@ -391,6 +391,16 @@ export default function App() {
     refreshConversations();
   };
 
+  const handleAssignAgent = async (id: number, agentId: number | null) => {
+    try {
+      await api.assignConversation(id, agentId);
+      refreshConversations();
+    } catch (e) {
+      console.error("Error al asignar conversación:", e);
+    }
+  };
+
+
   const handleReactionUpdate = (messageId: number, reactions: Reaction[]) =>
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, reactions } : m))
@@ -588,9 +598,12 @@ export default function App() {
           highlightId={highlightMsgId}
           onHighlightDone={() => setHighlightMsgId(null)}
           onStatusChange={handleStatusChange}
+          agents={agents}
+          onAssignAgent={handleAssignAgent}
           onOpenThread={setOpenThread}
           onReactionUpdate={handleReactionUpdate}
         />
+
       ) : (
         <main className="flex-1 flex items-center justify-center text-zinc-400">
           Selecciona un canal o conversación

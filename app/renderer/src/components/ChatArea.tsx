@@ -35,7 +35,9 @@ import {
   X,
   Plus,
   Loader2,
+  UserCheck,
 } from "lucide-react";
+
 
 /* ------------------ modal para gestionar miembros de canales privados ------------------ */
 
@@ -196,9 +198,12 @@ interface Props {
   highlightId?: number | null;
   onHighlightDone?: () => void;
   onStatusChange: (id: number, status: string) => void;
+  agents?: Agent[];
+  onAssignAgent?: (id: number, agentId: number | null) => void;
   onOpenThread: (m: Message) => void;
   onReactionUpdate: (messageId: number, reactions: Reaction[]) => void;
 }
+
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -325,6 +330,8 @@ export function ChatArea({
   highlightId,
   onHighlightDone,
   onStatusChange,
+  agents = [],
+  onAssignAgent,
   onOpenThread,
   onReactionUpdate,
 }: Props) {
@@ -423,10 +430,14 @@ export function ChatArea({
 
   const insertEmoji = (emoji: string) => {
     const el = textareaRef.current;
-    if (!el) { setDraft((d) => d + emoji); return; }
+    if (!el) {
+      setDraft((d) => d + emoji);
+      return;
+    }
     const start = el.selectionStart ?? draft.length;
     const end = el.selectionEnd ?? draft.length;
-    setDraft(draft.slice(0, start) + emoji + draft.slice(end));
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    setDraft(next);
     requestAnimationFrame(() => {
       el.focus();
       el.selectionStart = el.selectionEnd = start + emoji.length;
@@ -512,7 +523,28 @@ export function ChatArea({
           )}
 
           {conversation && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              {/* Asignación de Agente */}
+              {onAssignAgent && agents.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl px-2.5 py-1 text-xs shadow-2xs">
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span className="text-[10px] text-zinc-400 font-medium hidden sm:inline">Asignado:</span>
+                  <select
+                    value={conversation.assigned_agent_id || ""}
+                    onChange={(e) => onAssignAgent(conversation.id, e.target.value ? Number(e.target.value) : null)}
+                    className="bg-transparent font-semibold text-zinc-800 dark:text-zinc-200 text-xs outline-none cursor-pointer pr-1"
+                  >
+                    <option value="">Sin Asignar</option>
+                    {agents.map((ag) => (
+                      <option key={ag.id} value={ag.id}>
+                        {ag.name} {ag.id === myId ? "(tú)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Estado del ticket */}
               <select
                 value={conversation.status}
                 onChange={(e) => onStatusChange(conversation.id, e.target.value)}
