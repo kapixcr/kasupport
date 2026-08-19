@@ -20,3 +20,9 @@ app/dist-app/
 # OS files
 .DS_Store
 Thumbs.db
+
+# WhatsApp Session / Uploads
+server/data/
+server/baileys_auth/
+baileys_auth/
+

@@ -10,11 +10,19 @@
     "build:renderer": "cd renderer && npm run build",
     "dist": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --mac --win",
     "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --mac",
-    "dist:win": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --win"
+    "dist:win": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --win",
+    "release": "CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:renderer && electron-builder --mac --win --publish always"
   },
   "build": {
     "appId": "com.kasupport.app",
     "productName": "Kasupport",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "kapixcr",
+        "repo": "kasupport"
+      }
+    ],
     "directories": {
       "output": "dist-app",
       "buildResources": "build"
@@ -50,7 +58,6 @@
         }
       ]
     },
-
     "win": {
       "icon": "build/icon.ico",
       "target": [
@@ -76,5 +83,8 @@
   "devDependencies": {
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

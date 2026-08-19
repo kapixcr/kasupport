@@ -18,8 +18,9 @@ import {
 interface Props {
   conversations: Conversation[];
   onSelect: (selection: Selection) => void;
-  onClose: () => void;
+  onClose?: () => void;
   onRefreshConversations: () => void;
+  embedded?: boolean;
 }
 
 export function MailboxModal({
@@ -27,8 +28,10 @@ export function MailboxModal({
   onSelect,
   onClose,
   onRefreshConversations,
+  embedded,
 }: Props) {
-  const [filter, setFilter] = useState<"all" | "email" | "widget" | "open" | "closed">("all");
+  const [filter, setFilter] = useState<"all" | "email" | "whatsapp" | "widget" | "open" | "closed">("all");
+
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -101,8 +104,10 @@ export function MailboxModal({
   };
 
   const filtered = conversations.filter((c) => {
+    if (filter === "whatsapp" && c.source !== "whatsapp") return false;
+
     if (filter === "email" && c.source !== "email") return false;
-    if (filter === "widget" && c.source === "email") return false;
+    if (filter === "widget" && (c.source === "email" || c.source === "whatsapp")) return false;
     if (filter === "open" && c.status === "closed") return false;
     if (filter === "closed" && c.status !== "closed") return false;
 
@@ -111,71 +116,76 @@ export function MailboxModal({
     return (
       (c.visitor_name && c.visitor_name.toLowerCase().includes(q)) ||
       (c.visitor_email && c.visitor_email.toLowerCase().includes(q)) ||
+      (c.visitor_phone && c.visitor_phone.toLowerCase().includes(q)) ||
       (c.subject && c.subject.toLowerCase().includes(q)) ||
       (c.last_message && c.last_message.toLowerCase().includes(q))
     );
   });
 
   const emailCount = conversations.filter((c) => c.source === "email").length;
+  const whatsappCount = conversations.filter((c) => c.source === "whatsapp").length;
+  const widgetCount = conversations.filter((c) => c.source !== "email" && c.source !== "whatsapp").length;
   const openCount = conversations.filter((c) => c.status === "open").length;
   const closedCount = conversations.filter((c) => c.status === "closed").length;
 
-  return (
+  const content = (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
-      onClick={onClose}
+      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-sm flex flex-col overflow-hidden ${
+        embedded ? "w-full max-w-5xl h-full mx-auto" : "w-full max-w-3xl max-h-[85vh] shadow-2xl animate-in fade-in zoom-in-95"
+      }`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <header className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
-              <Mail className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-bold text-base text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                Buzón de Soporte
-                <span className="text-xs font-normal text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-mono">
-                  soporte@kapix.co.cr
-                </span>
-              </h2>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {conversations.length} tickets en total · {openCount} abiertos · {closedCount} cerrados
-              </p>
-            </div>
+      {/* Header */}
+      <header className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
+            <Mail className="w-5 h-5" />
           </div>
+          <div>
+            <h2 className="font-bold text-base text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              Buzón de Soporte
+              <span className="text-xs font-normal text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-mono">
+                soporte@kapix.co.cr
+              </span>
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {conversations.length} tickets en total · {openCount} abiertos · {closedCount} cerrados
+            </p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            {closedCount > 0 && (
-              <button
-                onClick={handleDeleteClosed}
-                disabled={syncing}
-                title="Eliminar todos los tickets que ya están cerrados"
-                className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-rose-50 dark:bg-zinc-800 dark:hover:bg-rose-950/40 text-zinc-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 transition-all border border-zinc-200/60 dark:border-zinc-700/60"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Borrar Cerrados ({closedCount})</span>
-              </button>
-            )}
+        <div className="flex items-center gap-2">
+          {closedCount > 0 && (
             <button
-              onClick={handleSync}
+              onClick={handleDeleteClosed}
               disabled={syncing}
-              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
+              title="Eliminar todos los tickets que ya están cerrados"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-rose-50 dark:bg-zinc-800 dark:hover:bg-rose-950/40 text-zinc-600 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 transition-all border border-zinc-200/60 dark:border-zinc-700/60"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-              <span>{syncing ? "Comprobando..." : "Sincronizar Gmail"}</span>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpiar cerrados ({closedCount})</span>
             </button>
+          )}
+
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white flex items-center gap-2 transition-all shadow-xs active:scale-[0.98]"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <span>{syncing ? "Sincronizando..." : "Sincronizar"}</span>
+          </button>
+
+          {onClose && !embedded && (
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-all"
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
-        </header>
+          )}
+        </div>
+      </header>
 
         {syncMessage && (
           <div className={`px-6 py-2 text-xs font-medium border-b ${
@@ -195,8 +205,9 @@ export function MailboxModal({
                 ["all", `Todos (${conversations.length})`],
                 ["open", `Abiertos (${openCount})`],
                 ["closed", `Cerrados (${closedCount})`],
+                ["whatsapp", `💬 WhatsApp (${whatsappCount})`],
                 ["email", `✉️ Correo (${emailCount})`],
-                ["widget", `💬 Web (${conversations.length - emailCount})`],
+                ["widget", `🌐 Web (${widgetCount})`],
               ] as [typeof filter, string][]
             ).map(([key, label]) => (
               <button
@@ -240,11 +251,12 @@ export function MailboxModal({
                 No hay tickets en esta vista
               </p>
               <p className="text-xs text-zinc-400 max-w-sm mt-1">
-                La bandeja está limpia. Los nuevos correos que lleguen a <strong>soporte@kapix.co.cr</strong> se listarán aquí automáticamente.
+                La bandeja está limpia. Los nuevos mensajes de WhatsApp, correos o chats web aparecerán aquí automáticamente.
               </p>
             </div>
           ) : (
             filtered.map((cv) => {
+              const isWhatsApp = cv.source === "whatsapp";
               const isEmail = cv.source === "email";
               const isOpen = cv.status === "open";
               const isDeleting = deletingId === cv.id;
@@ -253,7 +265,7 @@ export function MailboxModal({
                   key={cv.id}
                   onClick={() => {
                     onSelect({ kind: "conversation", id: cv.id, channelId: cv.channel_id });
-                    onClose();
+                    onClose?.();
                   }}
                   className={`p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-all flex items-start gap-3.5 group ${
                     isDeleting ? "opacity-30 pointer-events-none" : ""
@@ -261,9 +273,11 @@ export function MailboxModal({
                 >
                   <div
                     className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 font-bold text-xs ${
-                      isEmail
+                      isWhatsApp
+                        ? "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400"
+                        : isEmail
                         ? "bg-indigo-100 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400"
-                        : "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400"
+                        : "bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400"
                     }`}
                   >
                     {isEmail ? <Mail className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
@@ -275,7 +289,12 @@ export function MailboxModal({
                         <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 truncate">
                           {cv.visitor_name}
                         </span>
-                        {cv.visitor_email && (
+                        {cv.visitor_phone && (
+                          <span className="text-[11px] text-zinc-400 truncate">
+                            {cv.visitor_phone}
+                          </span>
+                        )}
+                        {cv.visitor_email && !cv.visitor_phone && (
                           <span className="text-[11px] text-zinc-400 truncate">
                             &lt;{cv.visitor_email}&gt;
                           </span>
@@ -315,9 +334,10 @@ export function MailboxModal({
                     </div>
 
                     <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate mb-1">
-                      {isEmail ? `Ticket #${cv.id}: ` : "Chat web: "}
+                      {isWhatsApp ? "WhatsApp: " : isEmail ? `Ticket #${cv.id}: ` : "Chat web: "}
                       {cv.subject || "Consulta de soporte"}
                     </p>
+
 
                     {cv.last_message && (
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate line-clamp-1">
@@ -343,6 +363,22 @@ export function MailboxModal({
           )}
         </div>
       </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-950 p-6 md:p-8 overflow-hidden">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      {content}
     </div>
   );
 }

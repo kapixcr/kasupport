@@ -4,15 +4,15 @@ import type { Selection } from "@/lib/selection";
 import { SearchBar } from "@/components/SearchBar";
 import {
   Settings,
-  Video,
-  Calendar,
   Plus,
   Hash,
   Lock,
   Megaphone,
   Mail,
+  MessageSquare,
   LogOut,
   Smile,
+
   X,
   Users,
   Building2,
@@ -54,9 +54,6 @@ interface Props {
   onAgentChange: (a: Agent) => void;
   onSearchSelect: (r: SearchResult) => void;
   unreads?: Record<number, number>;
-  onNewMeeting?: () => void;
-  onOpenCalendar?: () => void;
-  onOpenMailbox?: () => void;
 }
 
 export function Sidebar({
@@ -78,9 +75,6 @@ export function Sidebar({
   onAvatarChange,
   onAgentChange,
   onSearchSelect,
-  onNewMeeting,
-  onOpenCalendar,
-  onOpenMailbox,
 }: Props) {
 
   const [adding, setAdding] = useState(false);
@@ -151,45 +145,9 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Buscador y Accesos Directos */}
-      <div className="pt-3 pb-2.5 border-b border-white/[0.08] px-3 space-y-2">
+      {/* Buscador */}
+      <div className="py-2.5 border-b border-white/[0.08] px-3">
         <SearchBar onSelect={onSearchSelect} />
-        <div className="grid grid-cols-2 gap-2 pt-0.5">
-          {onNewMeeting && (
-            <button
-              onClick={onNewMeeting}
-              className="bg-indigo-600/90 hover:bg-indigo-600 text-white font-medium text-xs rounded-xl py-2 px-2.5 flex items-center justify-center gap-1.5 transition-all shadow-sm border border-indigo-400/20 active:scale-[0.98]"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>Reunión</span>
-            </button>
-          )}
-          {onOpenCalendar && (
-            <button
-              onClick={onOpenCalendar}
-              className="bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 border border-white/10 font-medium text-xs rounded-xl py-2 px-2.5 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
-            >
-              <Calendar className="w-3.5 h-3.5 text-zinc-300" />
-              <span>Agenda</span>
-            </button>
-          )}
-        </div>
-        {onOpenMailbox && (
-          <button
-            onClick={onOpenMailbox}
-            className="w-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 hover:text-white border border-indigo-500/30 font-medium text-xs rounded-xl py-2 px-3 flex items-center justify-between transition-all active:scale-[0.98] shadow-xs"
-          >
-            <span className="flex items-center gap-2">
-              <Mail className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Buzón de Soporte</span>
-            </span>
-            <span className="bg-indigo-500/30 text-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {conversations.filter((c) => c.source === "email").length > 0
-                ? `${conversations.filter((c) => c.source === "email").length} correos`
-                : "soporte@"}
-            </span>
-          </button>
-        )}
       </div>
 
 
@@ -338,8 +296,14 @@ export function Sidebar({
                               <Mail className="w-3 h-3 text-indigo-300 shrink-0" />
                             </span>
                           )}
+                          {cv.source === "whatsapp" && (
+                            <span title="Ticket recibido por WhatsApp">
+                              <MessageSquare className="w-3 h-3 text-emerald-400 shrink-0" />
+                            </span>
+                          )}
                           <span
                             className="truncate flex-1"
+
                             title={cv.subject ? `${cv.visitor_name}: ${cv.subject}` : cv.visitor_name}
                           >
                             {cv.visitor_name}
@@ -427,8 +391,14 @@ export function Sidebar({
                               <Mail className="w-3 h-3 text-indigo-300 shrink-0" />
                             </span>
                           )}
+                          {cv.source === "whatsapp" && (
+                            <span title="Ticket recibido por WhatsApp">
+                              <MessageSquare className="w-3 h-3 text-emerald-400 shrink-0" />
+                            </span>
+                          )}
                           <span
                             className="truncate flex-1"
+
                             title={cv.subject ? `${cv.visitor_name}: ${cv.subject}` : cv.visitor_name}
                           >
                             {cv.visitor_name}

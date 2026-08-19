@@ -29,8 +29,13 @@ import { HuddleManager, type HuddleParticipant } from "@/components/HuddleManage
 import { MeetingRoom } from "@/components/MeetingRoom";
 import { MeetingCalendarModal } from "@/components/MeetingCalendarModal";
 import { MailboxModal } from "@/components/MailboxModal";
+import { TopNav, type NavTab } from "@/components/TopNav";
+import { MeetingsView } from "@/components/MeetingsView";
+import { KapixAgentView } from "@/components/KapixAgentView";
+import { UpdateNotificationBanner } from "@/components/UpdateNotificationBanner";
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<NavTab>("chat");
   const [agent, setAgent] = useState<Agent | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -360,6 +365,7 @@ export default function App() {
 
   // Navegar a un resultado de búsqueda (canal / DM / soporte / hilo)
   const handleSearchSelect = async (r: SearchResult) => {
+    setActiveTab("chat");
     if (r.channel_type === "dm") {
       setSelection({ kind: "dm", id: r.channel_id, channelId: r.channel_id });
     } else if (r.channel_type === "support") {
@@ -502,14 +508,18 @@ export default function App() {
       };
     }
     const cv = conversations.find((x) => x.id === selection.id);
+    const isWhatsApp = cv?.source === "whatsapp";
     const isEmail = cv?.source === "email";
     return {
-      title: cv ? `${isEmail ? "✉️ " : ""}${cv.visitor_name}` : "Conversación",
+      title: cv ? `${isWhatsApp ? "💬 " : isEmail ? "✉️ " : ""}${cv.visitor_name}` : "Conversación",
       subtitle: cv
-        ? isEmail
+        ? isWhatsApp
+          ? `Ticket #${cv.id} (WhatsApp) · ${cv.visitor_phone || ""} ${cv.subject ? `· ${cv.subject}` : ""}`
+          : isEmail
           ? `Ticket #${cv.id} (Correo) · ${cv.subject ? `"${cv.subject}" · ` : ""}${cv.visitor_email || ""}`
           : `Chat web #${cv.id} · ${cv.department_name ?? ""}${cv.visitor_email ? ` · ${cv.visitor_email}` : ""}`
         : "",
+
       channel: null,
       conversation: cv ?? null,
       canPost: true,
@@ -543,81 +553,129 @@ export default function App() {
 
 
   const theme: Theme = agent.theme ?? DEFAULT_THEME;
+  const emailConversationsCount = conversations.filter((c) => c.source === "email").length;
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden bg-white dark:bg-zinc-900 ${agent.dark_mode ? "dark" : ""}`}>
-      <Sidebar
-        channels={channels}
-        departments={departments}
-        conversations={conversations}
-        selection={selection}
+    <div className={`h-screen w-screen flex flex-col overflow-hidden bg-white dark:bg-zinc-900 ${agent.dark_mode ? "dark" : ""}`}>
+      <TopNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         agent={agent}
-        agents={agents}
-        dms={dms}
-        onlineIds={onlineIds}
         theme={theme}
-        onSelect={setSelection}
-        onAddChannel={handleAddChannel}
-        onStartDm={handleStartDm}
+        emailCount={emailConversationsCount}
+        unreadMessagesCount={totalUnreads}
         onOpenSettings={() => setSettingsOpen(true)}
-        onLogout={handleLogout}
-        onAvatarChange={handleAvatarChange}
-        onAgentChange={setAgent}
-        onSearchSelect={handleSearchSelect}
-        unreads={unreads}
-        onNewMeeting={handleCreateMeeting}
-        onOpenCalendar={() => setCalendarOpen(true)}
-        onOpenMailbox={() => setMailboxOpen(true)}
       />
 
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
+        {activeTab === "chat" && (
+          <>
+            <Sidebar
+              channels={channels}
+              departments={departments}
+              conversations={conversations}
+              selection={selection}
+              agent={agent}
+              agents={agents}
+              dms={dms}
+              onlineIds={onlineIds}
+              theme={theme}
+              onSelect={setSelection}
+              onAddChannel={handleAddChannel}
+              onStartDm={handleStartDm}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onLogout={handleLogout}
+              onAvatarChange={handleAvatarChange}
+              onAgentChange={setAgent}
+              onSearchSelect={handleSearchSelect}
+              unreads={unreads}
+            />
 
+            {selection && current ? (
+              <ChatArea
+                title={current.title}
+                subtitle={current.subtitle}
+                channel={current.channel}
+                channelId={selection.channelId}
+                conversation={current.conversation}
+                messages={messages}
+                canPost={current.canPost}
+                postBlockReason={current.postBlockReason}
+                isAdmin={agent.role === "admin"}
+                theme={theme}
+                darkMode={!!agent.dark_mode}
+                bgImage={agent.bg_image}
+                myId={agent.id}
+                myName={agent.name}
+                typingNames={typingByChannel[selection.channelId] || []}
+                dmPeer={current.dmPeer}
+                onStartCall={setCallRequest}
+                huddleCount={selection.kind === "channel" ? (huddles[selection.channelId] || []).length : 0}
+                huddleActive={huddleChannel === selection.channelId}
+                onToggleHuddle={selection.kind === "channel" ? () => setHuddleChannel(selection.channelId) : undefined}
+                highlightId={highlightMsgId}
+                onHighlightDone={() => setHighlightMsgId(null)}
+                onStatusChange={handleStatusChange}
+                agents={agents}
+                onAssignAgent={handleAssignAgent}
+                onOpenThread={setOpenThread}
+                onReactionUpdate={handleReactionUpdate}
+              />
+            ) : (
+              <main className="flex-1 flex items-center justify-center text-zinc-400">
+                Selecciona un canal o conversación
+              </main>
+            )}
 
+            {openThread && (
+              <ThreadPanel
+                parent={openThread}
+                theme={theme}
+                myId={agent.id}
+                onClose={() => setOpenThread(null)}
+                onReactionUpdate={handleReactionUpdate}
+              />
+            )}
+          </>
+        )}
 
-      {selection && current ? (
-        <ChatArea
-          title={current.title}
-          subtitle={current.subtitle}
-          channel={current.channel}
-          channelId={selection.channelId}
-          conversation={current.conversation}
-          messages={messages}
-          canPost={current.canPost}
-          postBlockReason={current.postBlockReason}
-          isAdmin={agent.role === "admin"}
-          theme={theme}
-          darkMode={!!agent.dark_mode}
-          bgImage={agent.bg_image}
-          myId={agent.id}
-          myName={agent.name}
-          typingNames={typingByChannel[selection.channelId] || []}
-          dmPeer={current.dmPeer}
-          onStartCall={setCallRequest}
-          huddleCount={selection.kind === "channel" ? (huddles[selection.channelId] || []).length : 0}
-          huddleActive={huddleChannel === selection.channelId}
-          onToggleHuddle={selection.kind === "channel" ? () => setHuddleChannel(selection.channelId) : undefined}
-          highlightId={highlightMsgId}
-          onHighlightDone={() => setHighlightMsgId(null)}
-          onStatusChange={handleStatusChange}
-          agents={agents}
-          onAssignAgent={handleAssignAgent}
-          onOpenThread={setOpenThread}
-          onReactionUpdate={handleReactionUpdate}
-        />
+        {activeTab === "kapix_agent" && (
+          <KapixAgentView
+            agent={agent}
+            theme={theme}
+          />
+        )}
 
-      ) : (
-        <main className="flex-1 flex items-center justify-center text-zinc-400">
-          Selecciona un canal o conversación
-        </main>
-      )}
-      {openThread && (
-        <ThreadPanel
-          parent={openThread}
-          theme={theme}
-          myId={agent.id}
-          onClose={() => setOpenThread(null)}
-          onReactionUpdate={handleReactionUpdate}
-        />
-      )}
+        {activeTab === "meetings" && (
+          <MeetingsView
+            onCreateMeeting={handleCreateMeeting}
+            onJoinMeeting={(code) => setActiveMeetingCode(code)}
+            onOpenCalendar={() => setActiveTab("calendar")}
+          />
+        )}
+
+        {activeTab === "calendar" && (
+          <MeetingCalendarModal
+            agents={agents}
+            currentAgent={agent}
+            onJoinMeeting={(code) => setActiveMeetingCode(code)}
+            embedded
+          />
+        )}
+
+        {activeTab === "mailbox" && (
+          <MailboxModal
+            conversations={conversations}
+            onSelect={(s) => {
+              setSelection(s);
+              setActiveTab("chat");
+            }}
+            onRefreshConversations={refreshAll}
+            embedded
+          />
+        )}
+      </div>
+
       <CallManager
         me={agent}
         callRequest={callRequest}
@@ -651,8 +709,6 @@ export default function App() {
         />
       )}
       {settingsOpen && (
-
-
         <SettingsModal
           me={agent}
           theme={theme}
@@ -677,6 +733,7 @@ export default function App() {
           onRefreshConversations={refreshAll}
         />
       )}
+      <UpdateNotificationBanner />
     </div>
   );
 }

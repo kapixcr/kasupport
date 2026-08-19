@@ -16,6 +16,7 @@ const { loadMeetingConfig } = require('./meetings/config');
 const { createMeetingRouter, registerMeetingSocketHandlers } = require('./meetings/router');
 const emailService = require('./email/service');
 const emailPoller = require('./email/poller');
+const whatsappService = require('./whatsapp/service');
 
 
 const PORT = process.env.PORT || 4100;
@@ -632,12 +633,12 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
   });
   broadcastMessage(message);
 
-  // Si es un ticket de soporte y el cliente tiene correo registrado, enviar respuesta por SMTP
-  if (channel.type === 'support' && conv.rows[0]?.id && kind === 'text') {
+  // Si es un ticket de soporte, despachar respuesta según el origen (WhatsApp o Email)
+  if (channel.type === 'support' && conv.rows[0]?.id) {
     void (async () => {
       try {
         const { rows: convDetails } = await db.query(
-          `SELECT cv.id, cv.subject, v.email AS visitor_email, v.name AS visitor_name,
+          `SELECT cv.id, cv.source, cv.subject, v.phone AS visitor_phone, v.email AS visitor_email, v.name AS visitor_name,
                   (SELECT m.email_message_id FROM messages m
                     WHERE m.conversation_id = cv.id AND m.email_message_id IS NOT NULL
                     ORDER BY m.id DESC LIMIT 1) AS in_reply_to
@@ -646,23 +647,38 @@ app.post('/api/channels/:id/messages', requireAuth, async (req, res) => {
             WHERE cv.id = $1`,
           [conv.rows[0].id]
         );
-        if (convDetails[0]?.visitor_email) {
-          console.log(`[SMTP] Despachando respuesta de agente (${req.agent.name}) al cliente (${convDetails[0].visitor_email}) para Ticket #${convDetails[0].id}...`);
-          const resEmail = await emailService.sendAgentReply({
-            to: convDetails[0].visitor_email,
-            subject: convDetails[0].subject || 'Soporte',
+        const c = convDetails[0];
+        if (!c) return;
+
+        if (c.source === 'whatsapp' && c.visitor_phone) {
+          let fileData = null;
+          if (kind === 'image' || kind === 'file') {
+            try { fileData = JSON.parse(body); } catch { /* sin JSON */ }
+          }
+          await whatsappService.sendAgentReply({
+            phone: c.visitor_phone,
             body: String(body).trim(),
-            inReplyTo: convDetails[0].in_reply_to,
-            ticketId: convDetails[0].id,
+            kind,
+            fileData,
+          });
+        } else if (c.visitor_email && kind === 'text') {
+          console.log(`[SMTP] Despachando respuesta de agente (${req.agent.name}) al cliente (${c.visitor_email}) para Ticket #${c.id}...`);
+          const resEmail = await emailService.sendAgentReply({
+            to: c.visitor_email,
+            subject: c.subject || 'Soporte',
+            body: String(body).trim(),
+            inReplyTo: c.in_reply_to,
+            ticketId: c.id,
             agentName: req.agent.name,
           });
           console.log('[SMTP] Resultado de envío:', resEmail);
         }
       } catch (err) {
-        console.error('× Error al despachar respuesta por correo SMTP:', err.message);
+        console.error('× Error al despachar respuesta de ticket externo:', err.message);
       }
     })();
   }
+
 
 
   res.status(201).json(message);
@@ -784,6 +800,31 @@ app.post('/api/email/sync', requireAuth, async (_req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+/* ------------------------------- WhatsApp Baileys ------------------------------- */
+
+app.get('/api/whatsapp/status', requireAuth, async (_req, res) => {
+  res.json(whatsappService.getStatus());
+});
+
+app.post('/api/whatsapp/connect', requireAuth, async (_req, res) => {
+  try {
+    const status = await whatsappService.connect();
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al iniciar conexión de WhatsApp' });
+  }
+});
+
+app.post('/api/whatsapp/disconnect', requireAuth, async (_req, res) => {
+  try {
+    const status = await whatsappService.disconnect();
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Error al desconectar WhatsApp' });
+  }
+});
+
 
 
 
@@ -1531,7 +1572,11 @@ db.initDb().then(() => {
   // Inicializar lector de correos IMAP de Google Workspace
   emailPoller.init({ db, io, uploadsDir: UPLOADS_DIR });
 
+  // Inicializar servicio de WhatsApp (Baileys)
+  whatsappService.init({ db, io, uploadsDir: UPLOADS_DIR });
+
   server.listen(PORT, () => {
+
     console.log(`Kasupport server en http://localhost:${PORT}`);
     console.log(`Widget embed: http://localhost:${PORT}/widget.js`);
   });

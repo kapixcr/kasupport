@@ -37,10 +37,11 @@ interface Props {
   agents: Agent[];
   currentAgent: Agent;
   onJoinMeeting: (code: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
 }
 
-export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onClose }: Props) {
+export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onClose, embedded }: Props) {
   const [activeTab, setActiveTab] = useState<"calendar" | "availability">("calendar");
   const [meetings, setMeetings] = useState<CalendarMeeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,41 +163,47 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
     );
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-        {/* Header Modal */}
-        <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-950/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
-                Calendario de Reuniones y Agenda
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Coordina sesiones con tu equipo y revisa la disponibilidad del personal
-              </p>
-            </div>
+  const content = (
+    <div
+      className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-3xl flex flex-col overflow-hidden shadow-sm ${
+        embedded ? "w-full max-w-5xl h-full mx-auto" : "w-full max-w-4xl max-h-[90vh] shadow-2xl animate-in fade-in zoom-in-95"
+      }`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* Header Modal */}
+      <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-950/40">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+            <CalendarDays className="w-5 h-5" />
           </div>
+          <div>
+            <h2 className="text-base font-bold flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
+              Calendario de Reuniones y Agenda
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Coordina sesiones con tu equipo y revisa la disponibilidad del personal
+            </p>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setScheduleOpen(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Programar Reunión</span>
-            </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setScheduleOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Programar Reunión</span>
+          </button>
+          {onClose && !embedded && (
             <button
               onClick={onClose}
               className="p-2 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
+          )}
         </div>
+      </div>
 
         {/* Pestañas Superior */}
         <div className="px-6 pt-3 pb-2 border-b border-zinc-100 dark:border-zinc-800 flex gap-2 bg-zinc-50/30 dark:bg-zinc-950/20">
@@ -441,6 +448,19 @@ export function MeetingCalendarModal({ agents, currentAgent, onJoinMeeting, onCl
           )}
         </div>
       </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-950 p-6 md:p-8 overflow-hidden">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      {content}
     </div>
   );
 }

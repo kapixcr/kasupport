@@ -6,6 +6,7 @@ import {
   type Channel,
   type Department,
   type Theme,
+  type WhatsAppStatus,
 } from "@/lib/api";
 import { desktopNotify, ensureNotificationPermission, playDing } from "@/lib/notify";
 import {
@@ -32,7 +33,14 @@ import {
   ImagePlus,
   Volume2,
   BellRing,
+  MessageSquare,
+  QrCode,
+  Smartphone,
+  Unlink,
+  CheckCircle2,
+  Sparkles,
 } from "lucide-react";
+
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
@@ -60,7 +68,8 @@ interface Props {
   onChanged: () => void;
 }
 
-type Tab = "canales" | "departamentos" | "equipo" | "widget" | "correo" | "apariencia" | "avisos";
+type Tab = "canales" | "departamentos" | "equipo" | "widget" | "correo" | "whatsapp" | "apariencia" | "avisos" | "actualizaciones";
+
 
 const PRESETS: { name: string; theme: Theme }[] = [
   { name: "Slack oscuro", theme: { sidebar: "#19171d", accent: "#1164a3", bubble: "#4f46e5" } },
@@ -349,6 +358,172 @@ function AgentRow({
   );
 }
 
+/* ----------------------- gestión de actualizaciones ----------------------- */
+
+interface UpdateStatusInfo {
+  version?: string;
+}
+
+interface UpdateStatusState {
+  status: string;
+  info?: UpdateStatusInfo | null;
+  progress?: { percent: number } | null;
+  error?: string | null;
+}
+
+function UpdatesManager() {
+  const [version, setVersion] = useState<string>("0.1.0");
+  const [statusData, setStatusData] = useState<UpdateStatusState>({ status: "idle" });
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const desktop = (window as unknown as {
+      kasupportDesktop?: {
+        getAppVersion?: () => Promise<string>;
+        getUpdateStatus?: () => Promise<UpdateStatusState>;
+        onUpdateStatus?: (callback: (data: UpdateStatusState) => void) => () => void;
+      };
+    }).kasupportDesktop;
+
+    if (!desktop) return;
+    if (desktop.getAppVersion) {
+      desktop.getAppVersion().then((v) => v && setVersion(v)).catch(() => {});
+    }
+    if (desktop.getUpdateStatus) {
+      desktop.getUpdateStatus().then((s) => s && setStatusData(s)).catch(() => {});
+    }
+    if (desktop.onUpdateStatus) {
+      const unsub = desktop.onUpdateStatus((s) => {
+        setStatusData(s);
+        setChecking(false);
+      });
+      return unsub;
+    }
+  }, []);
+
+  const handleCheck = async () => {
+    const desktop = (window as unknown as {
+      kasupportDesktop?: {
+        checkForUpdates?: () => Promise<{ dev?: boolean; error?: string }>;
+      };
+    }).kasupportDesktop;
+
+    if (!desktop?.checkForUpdates) {
+      setMessage("Las actualizaciones automáticas están activas en la app de escritorio instalada.");
+      return;
+    }
+    setChecking(true);
+    setMessage(null);
+    try {
+      const res = await desktop.checkForUpdates();
+      if (res?.dev) {
+        setMessage("Estás en modo de desarrollo (ELECTRON_DEV=1).");
+      }
+    } catch (err: unknown) {
+      setMessage(err instanceof Error ? err.message : "Error al buscar actualizaciones.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleRestart = () => {
+    const desktop = (window as unknown as {
+      kasupportDesktop?: {
+        quitAndInstall?: () => void;
+      };
+    }).kasupportDesktop;
+    if (desktop?.quitAndInstall) {
+      desktop.quitAndInstall();
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Versión actual */}
+      <div className="bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-5 border border-zinc-200/80 dark:border-zinc-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold tracking-wider text-indigo-600 dark:text-indigo-400 uppercase">
+              Versión instalada
+            </span>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">
+              Kasupport v{version}
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              Canal de distribución: GitHub Releases (kapixcr/kasupport)
+            </p>
+          </div>
+          <button
+            onClick={handleCheck}
+            disabled={checking || statusData.status === "downloading"}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${checking ? "animate-spin" : ""}`} />
+            <span>{checking ? "Buscando..." : "Buscar actualizaciones"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Estado del Auto-Updater */}
+      {statusData.status === "downloading" && statusData.progress && (
+        <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+          <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
+            Descargando nueva versión ({Math.round(statusData.progress.percent)}%)...
+          </p>
+          <div className="w-full bg-indigo-200 dark:bg-indigo-900 rounded-full h-2 mt-2 overflow-hidden">
+            <div
+              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${Math.round(statusData.progress.percent)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {statusData.status === "downloaded" && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Nueva versión lista para instalar ({statusData.info?.version ? `v${statusData.info.version}` : ""})
+            </p>
+            <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
+              Reinicia Kasupport para aplicar los cambios.
+            </p>
+          </div>
+          <button
+            onClick={handleRestart}
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reiniciar ahora
+          </button>
+        </div>
+      )}
+
+      {statusData.status === "not-available" && (
+        <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 flex items-center gap-2.5 text-xs text-zinc-600 dark:text-zinc-300">
+          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          <span>Tienes instalada la versión más reciente de Kasupport.</span>
+        </div>
+      )}
+
+      {statusData.status === "error" && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400">
+          <p className="font-semibold">Estado de actualización:</p>
+          <p className="text-[11px] mt-0.5">{statusData.error}</p>
+        </div>
+      )}
+
+      {message && (
+        <div className="p-3.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-700 dark:text-zinc-300">
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* --------------------------------- modal --------------------------------- */
 
 export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeChange, bgImage, onBgImageChange, onPrefChange, onClose, onChanged }: Props) {
@@ -367,6 +542,9 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     smtp: { enabled: boolean; from: string };
   } | null>(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
+  const [whatsAppInfo, setWhatsAppInfo] = useState<WhatsAppStatus | null>(null);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [waActionLoading, setWaActionLoading] = useState(false);
   const isAdmin = me.role === "admin";
 
   const load = () => {
@@ -384,8 +562,48 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
       .finally(() => setLoadingEmail(false));
   };
 
+  const loadWhatsAppStatus = () => {
+    setLoadingWhatsApp(true);
+    api.whatsAppStatus()
+      .then(setWhatsAppInfo)
+      .catch(() => {})
+      .finally(() => setLoadingWhatsApp(false));
+  };
+
+  const handleConnectWhatsApp = async () => {
+    setWaActionLoading(true);
+    setError("");
+    try {
+      const res = await api.whatsAppConnect();
+      setWhatsAppInfo(res);
+    } catch (e: any) {
+      setError(e.message || "Error al conectar WhatsApp");
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleDisconnectWhatsApp = async () => {
+    if (!confirm("¿Deseas desconectar la sesión de WhatsApp? Dejarás de recibir y enviar tickets por WhatsApp.")) return;
+    setWaActionLoading(true);
+    setError("");
+    try {
+      const res = await api.whatsAppDisconnect();
+      setWhatsAppInfo(res);
+    } catch (e: any) {
+      setError(e.message || "Error al desconectar WhatsApp");
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tab === "correo") loadEmailStatus();
+    if (tab === "whatsapp") {
+      loadWhatsAppStatus();
+      const interval = setInterval(loadWhatsAppStatus, 3000);
+      return () => clearInterval(interval);
+    }
   }, [tab]);
 
   const run = async (fn: () => Promise<unknown>) => {
@@ -421,9 +639,12 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     { id: "equipo", label: "Equipo", icon: <Users className="w-3.5 h-3.5" /> },
     { id: "widget", label: "Widget", icon: <Code2 className="w-3.5 h-3.5" /> },
     { id: "correo", label: "Correo", icon: <Mail className="w-3.5 h-3.5" /> },
+    { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="w-3.5 h-3.5" /> },
     { id: "apariencia", label: "Tema", icon: <Palette className="w-3.5 h-3.5" /> },
     { id: "avisos", label: "Avisos", icon: <Bell className="w-3.5 h-3.5" /> },
+    { id: "actualizaciones", label: "Versión", icon: <Sparkles className="w-3.5 h-3.5" /> },
   ];
+
 
   return (
     <div
@@ -686,7 +907,177 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
             </div>
           )}
 
+          {tab === "whatsapp" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <div>
+                  <h3 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-500" /> WhatsApp Tickets (Baileys)
+                  </h3>
+                  <p className="text-[10px] text-zinc-400">
+                    Atención de soporte en tiempo real vía WhatsApp Web
+                  </p>
+                </div>
+                <button
+                  onClick={loadWhatsAppStatus}
+                  disabled={loadingWhatsApp}
+                  className="text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 font-semibold flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingWhatsApp ? "animate-spin" : ""}`} />
+                  <span>Actualizar</span>
+                </button>
+              </div>
+
+              {/* Estado conectado */}
+              {whatsAppInfo?.status === "connected" && (
+                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        WhatsApp Vinculado y Activo
+                      </span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                      En línea
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-white/70 dark:bg-zinc-900/70 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
+                    <div>
+                      <span className="text-zinc-400 block text-[10px]">Número Vinculado:</span>
+                      <span className="font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                        {whatsAppInfo.user?.phone ? `+${whatsAppInfo.user.phone}` : "Desconocido"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block text-[10px]">Nombre de Sesión:</span>
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                        {whatsAppInfo.user?.name || "WhatsApp Web"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    ✓ Los mensajes entrantes a este número crearán tickets automáticamente.
+                    <br />
+                    ✓ Las respuestas que envíen los agentes en Kasupport llegarán directamente al cliente.
+                  </p>
+
+                  <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 flex justify-end">
+                    <button
+                      onClick={handleDisconnectWhatsApp}
+                      disabled={waActionLoading}
+                      className="text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                      <span>{waActionLoading ? "Desconectando..." : "Desconectar WhatsApp"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Esperando escaneo de código QR */}
+              {whatsAppInfo?.status === "qr_ready" && whatsAppInfo.qr && (
+                <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 text-center space-y-4">
+                  <div className="flex flex-col items-center">
+                    <div className="bg-white p-3 rounded-2xl shadow-md border border-zinc-200 dark:border-zinc-700">
+                      <img
+                        src={whatsAppInfo.qr}
+                        alt="Código QR de WhatsApp"
+                        className="w-48 h-48 rounded-lg"
+                      />
+                    </div>
+                    <span className="mt-2 text-[10px] text-zinc-400 flex items-center gap-1">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Se actualiza automáticamente
+                    </span>
+                  </div>
+
+                  <div className="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700/80 text-left text-xs space-y-1.5 text-zinc-600 dark:text-zinc-300">
+                    <p className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4 text-emerald-500" /> Pasos para vincular:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <li>Abre <strong>WhatsApp</strong> en tu celular.</li>
+                      <li>Toca <strong>Menú (⋮)</strong> o <strong>Ajustes</strong> &gt; <strong>Dispositivos vinculados</strong>.</li>
+                      <li>Toca <strong>Vincular un dispositivo</strong> y apunta tu cámara a este código QR.</li>
+                    </ol>
+                  </div>
+
+                  <button
+                    onClick={handleDisconnectWhatsApp}
+                    disabled={waActionLoading}
+                    className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
+
+              {/* Estado conectando */}
+              {whatsAppInfo?.status === "connecting" && (
+                <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center space-y-3">
+                  <RefreshCw className="w-6 h-6 text-emerald-500 animate-spin mx-auto" />
+                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                    Iniciando conexión con WhatsApp...
+                  </p>
+                  <p className="text-[11px] text-zinc-400">
+                    Generando código QR seguro para vincular tu dispositivo.
+                  </p>
+                </div>
+              )}
+
+              {/* Estado desconectado */}
+              {(!whatsAppInfo || whatsAppInfo.status === "disconnected") && (
+                <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                        Vincular número de WhatsApp
+                      </h4>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                        Convierte chats de WhatsApp en tickets atendidos por tus agentes.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700/80 text-[11px] text-zinc-600 dark:text-zinc-300 space-y-1">
+                    <p className="font-semibold text-zinc-800 dark:text-zinc-200">✨ Características:</p>
+                    <ul className="list-disc list-inside text-zinc-500 dark:text-zinc-400 space-y-0.5 text-[10px]">
+                      <li>Multi-agente: Todos tus agentes podrán responder desde Kasupport.</li>
+                      <li>Soporte para fotos, audios, documentos y texto.</li>
+                      <li>Sin costos por mensaje de Meta ni APIs complejas.</li>
+                    </ul>
+                  </div>
+
+                  <button
+                    onClick={handleConnectWhatsApp}
+                    disabled={waActionLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+                  >
+                    {waActionLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Generando código QR...</span>
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="w-4 h-4" />
+                        <span>Generar Código QR de Vinculación</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === "avisos" && (
+
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl p-4 border border-zinc-200/80 dark:border-zinc-800">
                 <div>
@@ -864,6 +1255,8 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
               </button>
             </div>
           )}
+
+          {tab === "actualizaciones" && <UpdatesManager />}
         </div>
       </div>
     </div>

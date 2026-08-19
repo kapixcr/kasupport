@@ -1,0 +1,54 @@
+name: Release Kasupport Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            app/package-lock.json
+            app/renderer/package-lock.json
+
+      - name: Install dependencies (Renderer)
+        run: |
+          cd app/renderer
+          npm ci
+
+      - name: Build Renderer
+        run: |
+          cd app/renderer
+          npm run build
+
+      - name: Install dependencies (App)
+        run: |
+          cd app
+          npm ci
+
+      - name: Build & Publish Electron App
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          cd app
+          npx electron-builder --publish always

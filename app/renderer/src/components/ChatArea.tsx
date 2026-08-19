@@ -32,11 +32,13 @@ import {
   Download,
   CornerUpLeft,
   MessageCircle,
+  MessageSquare,
   X,
   Plus,
   Loader2,
   UserCheck,
 } from "lucide-react";
+
 
 
 /* ------------------ modal para gestionar miembros de canales privados ------------------ */
@@ -468,11 +470,16 @@ export function ChatArea({
                   <Megaphone className="w-4 h-4 text-indigo-500" />
                 ) : dmPeer ? (
                   <User className="w-4 h-4 text-indigo-500" />
+                ) : conversation?.source === "whatsapp" ? (
+                  <MessageSquare className="w-4 h-4 text-emerald-500" />
+                ) : conversation?.source === "email" ? (
+                  <Mail className="w-4 h-4 text-indigo-500" />
                 ) : conversation ? (
-                  <Mail className="w-4 h-4 text-emerald-500" />
+                  <MessageSquare className="w-4 h-4 text-sky-500" />
                 ) : (
                   <Hash className="w-4 h-4 text-zinc-400" />
                 )}
+
               </span>
               <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">
                 {title}

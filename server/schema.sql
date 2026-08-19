@@ -76,13 +76,15 @@ CREATE TABLE IF NOT EXISTS conversations (
   channel_id    INT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
   status        TEXT NOT NULL DEFAULT 'open',       -- open | pending | closed
   subject       TEXT,
-  source        TEXT NOT NULL DEFAULT 'widget',     -- widget | email
+  source        TEXT NOT NULL DEFAULT 'widget',     -- widget | email | whatsapp
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS subject TEXT;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'widget';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_agent_id INT REFERENCES agents(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_visitors_phone ON visitors(phone);
+
 
 
 CREATE TABLE IF NOT EXISTS messages (

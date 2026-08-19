@@ -4,11 +4,73 @@
  * En producción carga el build del renderer (renderer/dist/index.html).
  */
 const { app, BrowserWindow, shell, desktopCapturer, ipcMain, powerSaveBlocker } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
 const isDev = process.env.ELECTRON_DEV === '1';
 const DEV_RENDERER_ORIGIN = 'http://localhost:7100';
 const powerSaveBlockers = new Map();
+let mainWindow = null;
+let updateStatus = { status: 'idle', info: null, progress: null, error: null };
+
+function sendUpdateStatus(data) {
+  updateStatus = { ...updateStatus, ...data };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updater:status', updateStatus);
+  }
+}
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('checking-for-update', () => {
+  sendUpdateStatus({ status: 'checking', error: null });
+});
+
+autoUpdater.on('update-available', (info) => {
+  sendUpdateStatus({ status: 'available', info, error: null });
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  sendUpdateStatus({ status: 'not-available', info, error: null });
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  sendUpdateStatus({ status: 'downloading', progress });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  sendUpdateStatus({ status: 'downloaded', info });
+});
+
+autoUpdater.on('error', (err) => {
+  sendUpdateStatus({ status: 'error', error: err ? (err.message || String(err)) : 'Error desconocido' });
+});
+
+ipcMain.handle('updater:get-version', () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('updater:get-status', () => {
+  return updateStatus;
+});
+
+ipcMain.handle('updater:check', async () => {
+  if (isDev) {
+    sendUpdateStatus({ status: 'not-available', info: { version: app.getVersion() }, error: null });
+    return { dev: true };
+  }
+  try {
+    return await autoUpdater.checkForUpdates();
+  } catch (err) {
+    sendUpdateStatus({ status: 'error', error: err?.message || String(err) });
+    return { error: err?.message || String(err) };
+  }
+});
+
+ipcMain.handle('updater:quit-and-install', () => {
+  autoUpdater.quitAndInstall();
+});
 
 
 function isTrustedRendererUrl(rawUrl) {
@@ -66,7 +128,11 @@ function createWindow() {
       sandbox: false,
       webSecurity: false,
     },
+  });
 
+  mainWindow = win;
+  win.on('closed', () => {
+    mainWindow = null;
   });
 
   // Compartir pantalla solo desde el renderer confiable. Electron usará el
@@ -109,6 +175,8 @@ function createWindow() {
     const headers = { ...details.responseHeaders };
     delete headers['access-control-allow-origin'];
     delete headers['Access-Control-Allow-Origin'];
+    delete headers['x-frame-options'];
+    delete headers['X-Frame-Options'];
     headers['Access-Control-Allow-Origin'] = ['*'];
     callback({ cancel: false, responseHeaders: headers });
   });
@@ -137,6 +205,22 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  // En producción, comprobar actualizaciones 5 segundos tras iniciar y luego cada 4 horas
+  if (!isDev) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+        console.warn('Error al verificar actualizaciones automáticas:', err?.message || err);
+      });
+    }, 5000);
+
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    setInterval(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+        console.warn('Error al verificar actualizaciones periódicas:', err?.message || err);
+      });
+    }, FOUR_HOURS);
+  }
 });
 
 app.on('window-all-closed', () => {

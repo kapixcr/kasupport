@@ -170,12 +170,19 @@ export interface Conversation {
   department_name?: string;
   department_id?: number;
   subject?: string;
-  source?: "widget" | "email";
+  source?: "widget" | "email" | "whatsapp";
   assigned_agent_id?: number | null;
   assigned_agent_name?: string | null;
   message_count: string;
   last_message?: string;
 }
+
+export interface WhatsAppStatus {
+  status: "disconnected" | "connecting" | "qr_ready" | "connected";
+  qr: string | null;
+  user: { id: string; name: string; phone: string } | null;
+}
+
 
 
 
@@ -306,6 +313,12 @@ export const api = {
       lastPollTime: string;
       lastError: string | null;
     }>("/api/email/sync", { method: "POST" }),
+
+  // WhatsApp Baileys
+  whatsAppStatus: () => req<WhatsAppStatus>("/api/whatsapp/status"),
+  whatsAppConnect: () => req<WhatsAppStatus>("/api/whatsapp/connect", { method: "POST" }),
+  whatsAppDisconnect: () => req<WhatsAppStatus>("/api/whatsapp/disconnect", { method: "POST" }),
+
 
 
 

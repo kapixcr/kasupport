@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, setToken, type Agent } from "@/lib/api";
-import { Sparkles, Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
+import { KapixLogo } from "@/components/KapixLogo";
 
 interface Props {
   onAuth: (agent: Agent) => void;
@@ -40,8 +41,8 @@ export function AuthScreen({ onAuth }: Props) {
 
       <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-8 z-10 animate-in fade-in zoom-in-95">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <KapixLogo className="w-6 h-6" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Kasupport</h1>
