@@ -177,15 +177,20 @@ class EmailPoller {
 
 
     // Evitar procesar correos enviados por el propio buzón del sistema (prevención de bucles)
+    // Ignorar correos de rebotes del sistema o de la propia dirección de envío de soporte
     const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase();
     if (senderEmail === 'soporte@kapix.co.cr' || (supportEmail.includes('soporte@') && senderEmail === supportEmail)) {
       console.log(`ℹ Correo ignorado (remitente es el buzón del sistema): ${senderEmail}`);
       return;
     }
+    if (senderEmail.includes('mailer-daemon@') || senderEmail.includes('postmaster@')) {
+      console.log(`ℹ Correo ignorado (rebote automático): ${senderEmail}`);
+      return;
+    }
 
-    // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), verificar que esté dirigido al buzón de soporte
+    // Si se especificó EMAIL_FILTER_TO explícito, verificarlo solo si no es un correo legítimo de cliente
     const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
-    if (filterTo) {
+    if (filterTo && filterTo !== 'all' && filterTo !== '*') {
       const filterList = filterTo.split(',').map((f) => f.trim().toLowerCase()).filter(Boolean);
       const toAddresses = [];
       if (parsed.to?.value) {
@@ -207,8 +212,9 @@ class EmailPoller {
         }
       }
 
-      const isTargeted = filterList.some((target) =>
-        toAddresses.some((addr) => addr.includes(target))
+      // Si filterTo incluye kenneth@ o soporte@ o si no hay filtros restrictivos, procesar siempre
+      const isTargeted = filterList.length === 0 || filterList.some((target) =>
+        toAddresses.length === 0 || toAddresses.some((addr) => addr.includes(target) || target.includes(addr))
       );
 
       if (!isTargeted) {
@@ -216,6 +222,7 @@ class EmailPoller {
         return;
       }
     }
+
 
 
     console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
