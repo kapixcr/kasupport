@@ -69,26 +69,44 @@ class EmailPoller {
       connection = await imaps.connect(this.config);
       await connection.openBox('INBOX');
 
-      // Buscar correos no leídos
-      const searchCriteria = ['UNSEEN'];
+      // Sondeo inteligente: buscar no leídos Y los correos recientes de los últimos 2 días
+
+      // Así ningún correo se pierde aunque el usuario lo haya abierto en Gmail o móvil
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - 2);
+
       const fetchOptions = {
         bodies: [''],
         struct: true,
-        markSeen: true, // Marca como leído para no re-procesar
+        markSeen: true,
       };
 
       console.log(`[IMAP] Sondeando INBOX (${new Date().toLocaleTimeString()})...`);
-      const messages = await connection.search(searchCriteria, fetchOptions);
+
+      const unseenMessages = await connection.search(['UNSEEN'], fetchOptions).catch(() => []);
+      const recentMessages = await connection.search([['SINCE', sinceDate]], fetchOptions).catch(() => []);
+
+      // Unir mensajes sin duplicar UIDs
+      const seenUids = new Set();
+      const allMessages = [];
+      for (const msg of [...unseenMessages, ...recentMessages]) {
+        const uid = msg.attributes?.uid || msg.seqno;
+        if (!seenUids.has(uid)) {
+          seenUids.add(uid);
+          allMessages.push(msg);
+        }
+      }
+
       this.lastPollTime = new Date().toISOString();
       this.lastError = null;
 
-      if (messages.length === 0) {
-        console.log(`[IMAP] Sin correos nuevos no leídos (UNSEEN). Esperando...`);
+      if (allMessages.length === 0) {
+        console.log(`[IMAP] Sin correos en INBOX.`);
       } else {
-        console.log(`[IMAP] 📩 Se encontraron ${messages.length} correos nuevos en la bandeja de entrada`);
+        console.log(`[IMAP] Verificando ${allMessages.length} correos recientes en INBOX...`);
       }
 
-      for (const item of messages) {
+      for (const item of allMessages) {
         try {
           const rawPart = item.parts.find((p) => p.which === '');
           const rawBody = rawPart ? rawPart.body : '';
@@ -96,7 +114,6 @@ class EmailPoller {
 
           const parsed = await simpleParser(rawBody);
           await this.processIncomingEmail(parsed);
-          this.processedCount++;
         } catch (msgErr) {
           console.error('× Error al procesar correo individual:', msgErr);
         }
@@ -125,7 +142,7 @@ class EmailPoller {
     const senderEmail = (sender?.address || '').toLowerCase().trim();
     const senderName = (sender?.name || senderEmail.split('@')[0] || 'Cliente').trim();
     const subject = (parsed.subject || 'Sin Asunto').trim();
-    const messageId = parsed.messageId || null;
+    let messageId = parsed.messageId || null;
     const inReplyTo = parsed.inReplyTo || null;
     const references = Array.isArray(parsed.references)
       ? parsed.references
@@ -141,9 +158,23 @@ class EmailPoller {
     }
 
     if (!senderEmail) {
-      console.warn('× Correo ignorado: no tiene remitente válido');
       return;
     }
+
+    // Generar un ID único determinístico si el cliente de correo no envió Message-ID
+    if (!messageId) {
+      messageId = 'hash:' + crypto.createHash('sha256').update(senderEmail + subject + (parsed.date?.toISOString() || body.slice(0, 100))).digest('hex');
+    }
+
+    // 0. Deduplicación: Si ya fue importado en la base de datos, ignorar
+    const alreadyProcessed = await this.db.query(
+      'SELECT 1 FROM messages WHERE email_message_id = $1 LIMIT 1',
+      [messageId]
+    );
+    if (alreadyProcessed.rows.length > 0) {
+      return;
+    }
+
 
     // Evitar procesar correos enviados por el propio buzón del sistema (prevención de bucles)
     const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase();
