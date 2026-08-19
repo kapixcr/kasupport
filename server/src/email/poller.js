@@ -186,6 +186,7 @@ class EmailPoller {
     // Si se especificó EMAIL_FILTER_TO (ej: soporte@kapix.co.cr), verificar que esté dirigido al buzón de soporte
     const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
     if (filterTo) {
+      const filterList = filterTo.split(',').map((f) => f.trim().toLowerCase()).filter(Boolean);
       const toAddresses = [];
       if (parsed.to?.value) {
         parsed.to.value.forEach((t) => t.address && toAddresses.push(t.address.toLowerCase()));
@@ -199,19 +200,23 @@ class EmailPoller {
       if (parsed.headers) {
         for (const [key, val] of parsed.headers.entries()) {
           const k = String(key).toLowerCase();
-          if (k.includes('to') || k.includes('delivered') || k.includes('recipient') || k.includes('forward')) {
+          if (k.includes('to') || k.includes('delivered') || k.includes('recipient') || k.includes('forward') || k.includes('received')) {
             const strVal = typeof val === 'object' && val?.value ? JSON.stringify(val.value) : String(val || '');
             toAddresses.push(strVal.toLowerCase());
           }
         }
       }
 
-      const isTargeted = toAddresses.length === 0 || toAddresses.some((addr) => addr.includes(filterTo));
+      const isTargeted = filterList.some((target) =>
+        toAddresses.some((addr) => addr.includes(target))
+      );
+
       if (!isTargeted) {
-        console.log(`ℹ Correo ignorado (no coincide con EMAIL_FILTER_TO=${filterTo}): "${subject}" de ${senderEmail}. Destinatarios:`, toAddresses);
+        console.log(`ℹ Correo ignorado (no coincide con EMAIL_FILTER_TO=${filterTo}): "${subject}" de ${senderEmail}`);
         return;
       }
     }
+
 
     console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
 
