@@ -20,7 +20,8 @@
       {
         "provider": "github",
         "owner": "kapixcr",
-        "repo": "kasupport"
+        "repo": "kasupport",
+        "private": true
       }
     ],
     "directories": {
