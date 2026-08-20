@@ -209,7 +209,9 @@ app.post('/api/auth/register', async (req, res) => {
     `INSERT INTO agents (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING *`,
     [name.trim(), email.trim().toLowerCase(), hash, role]
   );
-  res.status(201).json({ token: signToken(rows[0]), agent: publicAgent(rows[0]) });
+  const newAgent = publicAgent(rows[0]);
+  io.to('agents').emit('agent:new', newAgent);
+  res.status(201).json({ token: signToken(rows[0]), agent: newAgent });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -228,6 +230,41 @@ app.get('/api/auth/me', requireAuth, (req, res) => res.json(publicAgent(req.agen
 app.get('/api/agents', requireAuth, async (_req, res) => {
   const { rows } = await db.query('SELECT id, name, email, color, role, avatar, status_emoji, status_text, created_at FROM agents ORDER BY id');
   res.json(rows);
+});
+
+// Crear nuevo agente (solo admin)
+app.post('/api/agents', requireAuth, requireAdmin, async (req, res) => {
+  const { name, email, password, role = 'agent', color = '#4f46e5' } = req.body || {};
+  if (!name?.trim() || !email?.trim() || !password) {
+    return res.status(400).json({ error: 'name, email y password requeridos' });
+  }
+  if (password.length < 6) return res.status(400).json({ error: 'password mínimo 6 caracteres' });
+  const cleanEmail = email.trim().toLowerCase();
+  const exists = await db.query('SELECT 1 FROM agents WHERE email = $1', [cleanEmail]);
+  if (exists.rows.length) return res.status(409).json({ error: 'ese email ya está registrado' });
+
+  const assignedRole = ['admin', 'agent'].includes(role) ? role : 'agent';
+  const hash = await bcrypt.hash(password, 10);
+  const { rows } = await db.query(
+    `INSERT INTO agents (name, email, password_hash, role, color) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [name.trim(), cleanEmail, hash, assignedRole, color]
+  );
+  const created = publicAgent(rows[0]);
+  io.to('agents').emit('agent:new', created);
+  res.status(201).json(created);
+});
+
+// Eliminar agente (solo admin)
+app.delete('/api/agents/:id', requireAuth, requireAdmin, async (req, res) => {
+  const targetId = Number(req.params.id);
+  if (!targetId) return res.status(400).json({ error: 'id inválido' });
+  if (targetId === req.agent.id) {
+    return res.status(400).json({ error: 'no puedes eliminar tu propia cuenta' });
+  }
+  const { rows } = await db.query('DELETE FROM agents WHERE id = $1 RETURNING id, name, email', [targetId]);
+  if (!rows[0]) return res.status(404).json({ error: 'agente no encontrado' });
+  io.to('agents').emit('agent:delete', { id: targetId });
+  res.json({ ok: true, agent: rows[0] });
 });
 
 // Cambiar foto de perfil, nombre o tema de colores personal

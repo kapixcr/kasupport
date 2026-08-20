@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   API,
   api,
+  getKapixAgentUrl,
+  setKapixAgentUrl,
+  DEFAULT_KAPIX_AGENT_URL,
   type Agent,
   type Channel,
   type Department,
@@ -39,6 +42,8 @@ import {
   Unlink,
   CheckCircle2,
   Sparkles,
+  Bot,
+  UserPlus,
 } from "lucide-react";
 
 
@@ -68,7 +73,7 @@ interface Props {
   onChanged: () => void;
 }
 
-type Tab = "canales" | "departamentos" | "equipo" | "widget" | "correo" | "whatsapp" | "apariencia" | "avisos" | "actualizaciones";
+type Tab = "canales" | "departamentos" | "equipo" | "kapix_agent" | "widget" | "correo" | "whatsapp" | "apariencia" | "avisos" | "actualizaciones";
 
 
 const PRESETS: { name: string; theme: Theme }[] = [
@@ -238,17 +243,20 @@ function AgentRow({
   me,
   isAdmin,
   onRoleChange,
+  onDelete,
 }: {
   agent: Agent;
   me: Agent;
   isAdmin: boolean;
   onRoleChange: (role: string) => void;
+  onDelete?: () => void;
 }) {
   const [changingPass, setChangingPass] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [passError, setPassError] = useState("");
   const [passSuccess, setPassSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,14 +316,46 @@ function AgentRow({
         )}
 
         {isAdmin && agent.id !== me.id ? (
-          <select
-            value={agent.role}
-            onChange={(e) => onRoleChange(e.target.value)}
-            className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
-          >
-            <option value="agent">agente</option>
-            <option value="admin">admin</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={agent.role}
+              onChange={(e) => onRoleChange(e.target.value)}
+              className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              <option value="agent">agente</option>
+              <option value="admin">admin</option>
+            </select>
+            {onDelete && (
+              confirmDelete ? (
+                <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-200 dark:border-rose-900 text-xs">
+                  <span className="text-[10px] text-rose-600 dark:text-rose-400">¿Eliminar?</span>
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmDelete(false); onDelete(); }}
+                    className="text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:underline px-1"
+                  >
+                    Sí
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="text-[10px] text-zinc-400 hover:underline px-0.5"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                  title="Eliminar usuario"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )
+            )}
+          </div>
         ) : (
           <span className="text-[10px] font-bold text-zinc-500 uppercase px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-md">
             {agent.role}
@@ -372,7 +412,7 @@ interface UpdateStatusState {
 }
 
 function UpdatesManager() {
-  const [version, setVersion] = useState<string>("0.1.0");
+  const [version, setVersion] = useState<string>("0.1.1");
   const [statusData, setStatusData] = useState<UpdateStatusState>({ status: "idle" });
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -547,12 +587,70 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
   const [waActionLoading, setWaActionLoading] = useState(false);
   const isAdmin = me.role === "admin";
 
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentEmail, setNewAgentEmail] = useState("");
+  const [newAgentPassword, setNewAgentPassword] = useState("");
+  const [newAgentRole, setNewAgentRole] = useState<"agent" | "admin">("agent");
+  const [creatingAgent, setCreatingAgent] = useState(false);
+  const [agentFormError, setAgentFormError] = useState("");
+
+  const [kapixUrl, setKapixUrl] = useState(() => getKapixAgentUrl());
+  const [kapixUrlSaved, setKapixUrlSaved] = useState(false);
+
   const load = () => {
     api.channels().then(setChannels).catch(() => {});
     api.departments().then(setDepartments).catch(() => {});
     api.agents().then(setAgents).catch(() => {});
   };
   useEffect(load, []);
+
+  const handleCreateAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAgentFormError("");
+    if (!newAgentName.trim() || !newAgentEmail.trim() || !newAgentPassword) {
+      setAgentFormError("Todos los campos son obligatorios.");
+      return;
+    }
+    if (newAgentPassword.length < 6) {
+      setAgentFormError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    setCreatingAgent(true);
+    try {
+      await api.createAgent({
+        name: newAgentName.trim(),
+        email: newAgentEmail.trim().toLowerCase(),
+        password: newAgentPassword,
+        role: newAgentRole,
+      });
+      setNewAgentName("");
+      setNewAgentEmail("");
+      setNewAgentPassword("");
+      setNewAgentRole("agent");
+      setCreateAgentOpen(false);
+      load();
+      onChanged();
+    } catch (err: any) {
+      setAgentFormError(err instanceof Error ? err.message : "Error al crear agente");
+    } finally {
+      setCreatingAgent(false);
+    }
+  };
+
+  const handleSaveKapixUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    setKapixAgentUrl(kapixUrl);
+    setKapixUrlSaved(true);
+    setTimeout(() => setKapixUrlSaved(false), 2000);
+  };
+
+  const handleResetKapixUrl = () => {
+    setKapixUrl(DEFAULT_KAPIX_AGENT_URL);
+    setKapixAgentUrl(DEFAULT_KAPIX_AGENT_URL);
+    setKapixUrlSaved(true);
+    setTimeout(() => setKapixUrlSaved(false), 2000);
+  };
 
   const loadEmailStatus = () => {
     setLoadingEmail(true);
@@ -637,6 +735,7 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
     { id: "canales", label: "Canales", icon: <Hash className="w-3.5 h-3.5" /> },
     { id: "departamentos", label: "Dptos", icon: <Building2 className="w-3.5 h-3.5" /> },
     { id: "equipo", label: "Equipo", icon: <Users className="w-3.5 h-3.5" /> },
+    { id: "kapix_agent", label: "Kapix Agent", icon: <Bot className="w-3.5 h-3.5" /> },
     { id: "widget", label: "Widget", icon: <Code2 className="w-3.5 h-3.5" /> },
     { id: "correo", label: "Correo", icon: <Mail className="w-3.5 h-3.5" /> },
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="w-3.5 h-3.5" /> },
@@ -818,17 +917,183 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
           )}
 
           {tab === "equipo" && (
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-              {agents.map((a) => (
-                <AgentRow
-                  key={a.id}
-                  agent={a}
-                  me={me}
-                  isAdmin={isAdmin}
-                  onRoleChange={(role) => run(() => api.setAgentRole(a.id, role))}
-                />
-              ))}
-            </ul>
+            <div className="space-y-4">
+              {isAdmin && (
+                <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                        <UserPlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        Nuevo Miembro del Equipo
+                      </h3>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                        Crea cuentas para tus agentes o administradores
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setCreateAgentOpen(!createAgentOpen); setAgentFormError(""); }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{createAgentOpen ? "Cancelar" : "Agregar Miembro"}</span>
+                    </button>
+                  </div>
+
+                  {createAgentOpen && (
+                    <form onSubmit={handleCreateAgent} className="mt-3.5 pt-3.5 border-t border-zinc-200/80 dark:border-zinc-700/60 space-y-3">
+                      {agentFormError && (
+                        <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/40 p-2 rounded-xl border border-rose-200 dark:border-rose-900">
+                          {agentFormError}
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Nombre completo</label>
+                          <input
+                            value={newAgentName}
+                            onChange={(e) => setNewAgentName(e.target.value)}
+                            required
+                            placeholder="Ej: Carlos Méndez"
+                            className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Correo electrónico</label>
+                          <input
+                            type="email"
+                            value={newAgentEmail}
+                            onChange={(e) => setNewAgentEmail(e.target.value)}
+                            required
+                            placeholder="carlos@empresa.com"
+                            className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Contraseña temporal</label>
+                          <input
+                            type="password"
+                            value={newAgentPassword}
+                            onChange={(e) => setNewAgentPassword(e.target.value)}
+                            required
+                            minLength={6}
+                            placeholder="Mínimo 6 caracteres"
+                            className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Rol</label>
+                          <select
+                            value={newAgentRole}
+                            onChange={(e) => setNewAgentRole(e.target.value as "agent" | "admin")}
+                            className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+                          >
+                            <option value="agent">Agente de Soporte</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setCreateAgentOpen(false)}
+                          className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 px-3 py-1.5"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={creatingAgent}
+                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-xl shadow-xs transition-all"
+                        >
+                          {creatingAgent ? "Creando..." : "Guardar y Registrar"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">
+                  Miembros Registrados ({agents.length})
+                </p>
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/80 bg-white dark:bg-zinc-900/40 rounded-2xl border border-zinc-100 dark:border-zinc-800/80 px-3">
+                  {agents.map((a) => (
+                    <AgentRow
+                      key={a.id}
+                      agent={a}
+                      me={me}
+                      isAdmin={isAdmin}
+                      onRoleChange={(role) => run(() => api.setAgentRole(a.id, role))}
+                      onDelete={() => run(() => api.deleteAgent(a.id))}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {tab === "kapix_agent" && (
+            <div className="space-y-4">
+              <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      Configuración de Servidor Kapix Agent
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Define la dirección del servidor o agente autónomo (Harness / AI)
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveKapixUrl} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      URL del Servidor de Kapix Agent
+                    </label>
+                    <input
+                      type="url"
+                      value={kapixUrl}
+                      onChange={(e) => setKapixUrl(e.target.value)}
+                      placeholder="http://127.0.0.1:3080 o http://192.168.1.100:3080"
+                      required
+                      className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-400 font-mono"
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">
+                      Si el agente corre en otra máquina o servidor remoto, introduce su IP/dominio y puerto (ej: <code>http://192.168.1.50:3080</code>).
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetKapixUrl}
+                      className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline"
+                    >
+                      Restablecer por defecto (127.0.0.1:3080)
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {kapixUrlSaved && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> ¡URL guardada!
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
+                      >
+                        Guardar URL
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
 
           {tab === "widget" && (

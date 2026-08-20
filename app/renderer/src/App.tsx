@@ -130,6 +130,10 @@ export default function App() {
       .finally(() => setAuthChecked(true));
   }, []);
 
+  const refreshAgents = useCallback(() => {
+    api.agents().then(setAgents).catch(() => {});
+  }, []);
+
   const refreshConversations = useCallback(() => {
     api.conversations().then(setConversations).catch(() => {});
   }, []);
@@ -141,8 +145,9 @@ export default function App() {
   const refreshAll = useCallback(() => {
     api.departments().then(setDepartments).catch(() => {});
     api.channels().then(setChannels).catch(() => {});
+    refreshAgents();
     refreshConversations();
-  }, [refreshConversations]);
+  }, [refreshConversations, refreshAgents]);
 
   // Carga inicial tras login
   useEffect(() => {
@@ -154,7 +159,7 @@ export default function App() {
 
   useEffect(() => {
     if (!agent) return;
-    api.agents().then(setAgents).catch(() => {});
+    refreshAgents();
     api.channels().then((cs) => {
       setChannels(cs);
       setSelection((sel) => sel ?? (cs.length ? { kind: "channel", id: cs[0].id, channelId: cs[0].id } : null));
@@ -162,7 +167,7 @@ export default function App() {
     api.departments().then(setDepartments).catch(() => {});
     refreshConversations();
     refreshDms();
-  }, [agent?.id, refreshConversations, refreshDms]);
+  }, [agent?.id, refreshAgents, refreshConversations, refreshDms]);
 
   // Mensajes del canal seleccionado
   useEffect(() => {
@@ -246,15 +251,49 @@ export default function App() {
     const onHuddleState = (p: { channel_id: number; participants: HuddleParticipant[] }) =>
       setHuddles((prev) => ({ ...prev, [p.channel_id]: p.participants }));
 
-    // Presencia
-    const onPresenceList = (ids: number[]) => setOnlineIds(new Set(ids));
-    const onPresenceUpdate = (p: { agent_id: number; online: boolean }) =>
+    // Presencia y nuevos agentes
+    const onPresenceList = (ids: number[]) => {
+      setOnlineIds(new Set(ids));
+      setAgents((prev) => {
+        const known = new Set(prev.map((a) => a.id));
+        if (ids.some((id) => !known.has(id))) {
+          refreshAgents();
+        }
+        return prev;
+      });
+    };
+
+    const onPresenceUpdate = (p: { agent_id: number; online: boolean }) => {
       setOnlineIds((prev) => {
         const next = new Set(prev);
         if (p.online) next.add(p.agent_id);
         else next.delete(p.agent_id);
         return next;
       });
+      if (p.online) {
+        setAgents((prev) => {
+          if (!prev.some((a) => a.id === p.agent_id)) {
+            refreshAgents();
+          }
+          return prev;
+        });
+      }
+    };
+
+    // Nuevos agentes dados de alta
+    const onAgentNew = (newAgent: Agent) => {
+      setAgents((prev) => {
+        if (prev.some((p) => p.id === newAgent.id)) {
+          return prev.map((p) => (p.id === newAgent.id ? { ...p, ...newAgent } : p));
+        }
+        return [...prev, newAgent];
+      });
+    };
+
+    // Agentes eliminados
+    const onAgentDelete = (p: { id: number }) => {
+      setAgents((prev) => prev.filter((a) => a.id !== p.id));
+    };
 
     // Cambios de perfil/estado de cualquier agente
     const onAgentUpdate = (a: Agent) => {
@@ -312,6 +351,8 @@ export default function App() {
     socket.on("reaction:added", onReactionAdded);
     socket.on("presence:list", onPresenceList);
     socket.on("presence:update", onPresenceUpdate);
+    socket.on("agent:new", onAgentNew);
+    socket.on("agent:delete", onAgentDelete);
     socket.on("agent:update", onAgentUpdate);
     socket.on("typing", onTyping);
     socket.on("conversation:new", onNewConversation);
@@ -332,6 +373,8 @@ export default function App() {
       socket.off("reaction:added", onReactionAdded);
       socket.off("presence:list", onPresenceList);
       socket.off("presence:update", onPresenceUpdate);
+      socket.off("agent:new", onAgentNew);
+      socket.off("agent:delete", onAgentDelete);
       socket.off("agent:update", onAgentUpdate);
       socket.off("typing", onTyping);
       socket.off("conversation:new", onNewConversation);
@@ -345,7 +388,7 @@ export default function App() {
       socket.off("department:update", refresh);
       socket.off("department:delete", refresh);
     };
-  }, [agent, selection, refreshConversations, refreshAll, refreshDms]);
+  }, [agent, selection, refreshConversations, refreshAll, refreshDms, refreshAgents]);
 
   const handleAddChannel = async (name: string) => {
     const c = await api.createChannel(name);

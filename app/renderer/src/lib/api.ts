@@ -5,6 +5,21 @@ export const API: string =
   (import.meta.env.VITE_API_URL as string) ||
   "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io";
 
+export const DEFAULT_KAPIX_AGENT_URL = "http://127.0.0.1:3080";
+
+export function getKapixAgentUrl(): string {
+  return localStorage.getItem("kapix_agent_url") || (import.meta.env.VITE_KAPIX_AGENT_URL as string) || DEFAULT_KAPIX_AGENT_URL;
+}
+
+export function setKapixAgentUrl(url: string) {
+  const trimmed = url.trim();
+  if (trimmed) {
+    localStorage.setItem("kapix_agent_url", trimmed);
+  } else {
+    localStorage.removeItem("kapix_agent_url");
+  }
+}
+
 export const socket = io(API, {
   transports: ["websocket", "polling"],
   autoConnect: false,
@@ -242,6 +257,15 @@ export const api = {
     status_emoji?: string | null; status_text?: string | null;
   }) => req<Agent>("/api/agents/me", { method: "PATCH", body: JSON.stringify(data) }),
   agents: () => req<Agent[]>("/api/agents"),
+  createAgent: (data: { name: string; email: string; password: string; role?: string; color?: string }) =>
+    req<Agent>("/api/agents", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteAgent: (id: number) =>
+    req<{ ok: boolean; agent: { id: number; name: string; email: string } }>(`/api/agents/${id}`, {
+      method: "DELETE",
+    }),
   setAgentRole: (id: number, role: string) =>
     req<Agent>(`/api/agents/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
   changeAgentPassword: (id: number, password: string) =>
