@@ -106,18 +106,20 @@ class EmailPoller {
    */
   async getMailboxesToScan(connection) {
     const list = ['INBOX'];
+    const excludedPatterns = [
+      'all mail', 'todos', 'sent', 'enviados', 'draft', 'borrador',
+      'trash', 'papelera', 'bin', 'spam', 'junk', 'starred', 'destacad', 'important'
+    ];
+
     try {
       const boxes = await connection.getBoxes();
       const traverse = (obj, prefix = '') => {
         for (const key of Object.keys(obj)) {
           const fullPath = prefix ? `${prefix}${obj[key].delimiter || '/'}${key}` : key;
           const lower = key.toLowerCase();
-          if (
-            lower.includes('soporte') ||
-            lower.includes('support') ||
-            lower.includes('all mail') ||
-            lower.includes('todos')
-          ) {
+          const isExcluded = excludedPatterns.some((pattern) => lower.includes(pattern));
+
+          if (!isExcluded && (lower.includes('soporte') || lower.includes('support'))) {
             if (!list.includes(fullPath)) list.push(fullPath);
           }
           if (obj[key].children) {
@@ -181,7 +183,7 @@ class EmailPoller {
                 if (!rawBody) continue;
 
                 const parsed = await simpleParser(rawBody);
-                await this.processIncomingEmail(parsed);
+                await this.processIncomingEmail(parsed, boxName);
               } catch (msgErr) {
                 console.error(`× Error procesando correo en [${boxName}]:`, msgErr);
               }
@@ -213,7 +215,7 @@ class EmailPoller {
   /**
    * Procesa un correo recibido, extrayendo datos y convirtiéndolo en ticket o respuesta
    */
-  async processIncomingEmail(parsed) {
+  async processIncomingEmail(parsed, boxName = '') {
     let sender = parsed.from?.value?.[0];
     let senderEmail = (sender?.address || '').toLowerCase().trim();
     let senderName = (sender?.name || senderEmail.split('@')[0] || 'Cliente').trim();
@@ -230,6 +232,59 @@ class EmailPoller {
       if (origSender && origSender.includes('@') && !origSender.includes('groups.google.com')) {
         senderEmail = origSender;
       }
+    }
+
+    if (!senderEmail) {
+      return;
+    }
+
+    // 1. Prevención de bucles, auto-respuestas, agentes y cuenta personal/IMAP
+    const imapUser = (process.env.EMAIL_IMAP_USER || '').toLowerCase().trim();
+    const smtpUser = (process.env.EMAIL_SMTP_USER || '').toLowerCase().trim();
+    const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase().trim();
+
+    // Ignorar si el remitente es la cuenta IMAP o SMTP configurada (ej. kenneth@kapix.co.cr)
+    if (imapUser && senderEmail === imapUser) {
+      console.log(`ℹ Correo ignorado (remitente es la cuenta principal IMAP): ${senderEmail}`);
+      return;
+    }
+    if (smtpUser && senderEmail === smtpUser) {
+      console.log(`ℹ Correo ignorado (remitente es la cuenta principal SMTP): ${senderEmail}`);
+      return;
+    }
+
+    // Ignorar si el remitente es la dirección propia de soporte del sistema
+    if (senderEmail === 'soporte@kapix.co.cr' || (supportEmail.includes('soporte@') && senderEmail === supportEmail)) {
+      console.log(`ℹ Correo ignorado (remitente es el buzón del sistema): ${senderEmail}`);
+      return;
+    }
+
+    // Ignorar si el remitente es un agente del sistema (Kenneth, etc.)
+    if (this.db) {
+      try {
+        const isAgentRes = await this.db.query(
+          'SELECT id, name FROM agents WHERE LOWER(email) = $1 LIMIT 1',
+          [senderEmail]
+        );
+        if (isAgentRes.rows.length > 0) {
+          console.log(`ℹ Correo ignorado (remitente es el agente "${isAgentRes.rows[0].name}" <${senderEmail}>)`);
+          return;
+        }
+      } catch (agentErr) {
+        console.warn('Error verificando agente remitente:', agentErr.message);
+      }
+    }
+
+    // Ignorar rebotes automáticos y no-reply
+    if (
+      senderEmail.includes('mailer-daemon@') ||
+      senderEmail.includes('postmaster@') ||
+      senderEmail.includes('noreply@') ||
+      senderEmail.includes('no-reply@') ||
+      senderEmail.includes('notifications@google.com')
+    ) {
+      console.log(`ℹ Correo ignorado (rebote automático o no-reply): ${senderEmail}`);
+      return;
     }
 
     const subject = (parsed.subject || 'Sin Asunto').trim();
@@ -252,12 +307,6 @@ class EmailPoller {
       body = '[Mensaje sin texto en el cuerpo]';
     }
 
-
-    if (!senderEmail) {
-      return;
-    }
-
-
     // Generar un ID único determinístico si el cliente de correo no envió Message-ID
     if (!messageId) {
       messageId = 'hash:' + crypto.createHash('sha256').update(senderEmail + subject + (parsed.date?.toISOString() || body.slice(0, 100))).digest('hex');
@@ -272,68 +321,89 @@ class EmailPoller {
       return;
     }
 
-
-    // Evitar procesar correos enviados por el propio buzón del sistema (prevención de bucles)
-    // Ignorar correos de rebotes del sistema o de la propia dirección de envío de soporte
-    const supportEmail = (process.env.EMAIL_SUPPORT_ADDRESS || process.env.EMAIL_FROM || 'soporte@kapix.co.cr').toLowerCase();
-    if (senderEmail === 'soporte@kapix.co.cr' || (supportEmail.includes('soporte@') && senderEmail === supportEmail)) {
-      console.log(`ℹ Correo ignorado (remitente es el buzón del sistema): ${senderEmail}`);
-      return;
-    }
-    if (senderEmail.includes('mailer-daemon@') || senderEmail.includes('postmaster@')) {
-      console.log(`ℹ Correo ignorado (rebote automático): ${senderEmail}`);
-      return;
-    }
-
-    // Si se especificó EMAIL_FILTER_TO explícito, verificarlo solo si no es un correo legítimo de cliente
-    const filterTo = (process.env.EMAIL_FILTER_TO || '').toLowerCase().trim();
-    if (filterTo && filterTo !== 'all' && filterTo !== '*') {
-      const filterList = filterTo.split(',').map((f) => f.trim().toLowerCase()).filter(Boolean);
-      const toAddresses = [];
-      if (parsed.to?.value) {
-        parsed.to.value.forEach((t) => t.address && toAddresses.push(t.address.toLowerCase()));
-      }
-      if (parsed.cc?.value) {
-        parsed.cc.value.forEach((c) => c.address && toAddresses.push(c.address.toLowerCase()));
-      }
-      if (parsed.bcc?.value) {
-        parsed.bcc.value.forEach((b) => b.address && toAddresses.push(b.address.toLowerCase()));
-      }
-      if (parsed.headers) {
-        for (const [key, val] of parsed.headers.entries()) {
-          const k = String(key).toLowerCase();
-          if (k.includes('to') || k.includes('delivered') || k.includes('recipient') || k.includes('forward') || k.includes('received')) {
-            const strVal = typeof val === 'object' && val?.value ? JSON.stringify(val.value) : String(val || '');
-            toAddresses.push(strVal.toLowerCase());
-          }
-        }
-      }
-
-      // Si filterTo incluye kenneth@ o soporte@ o si no hay filtros restrictivos, procesar siempre
-      const isTargeted = filterList.length === 0 || filterList.some((target) =>
-        toAddresses.length === 0 || toAddresses.some((addr) => addr.includes(target) || target.includes(addr))
-      );
-
-      if (!isTargeted) {
-        console.log(`ℹ Correo ignorado (no coincide con EMAIL_FILTER_TO=${filterTo}): "${subject}" de ${senderEmail}`);
-        return;
-      }
-    }
-
-
-
-    console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
-
-
-
-
-    // 1. Detectar si es respuesta a un ticket existente
+    // 2. Detectar si es respuesta a un ticket existente
     const existingConversation = await this.findExistingConversation({
       subject,
       inReplyTo,
       references,
       senderEmail,
     });
+
+    // 3. Filtrado de destinatario: Solo crear tickets nuevos si está dirigido a soporte@kapix.co.cr
+    if (!existingConversation) {
+      const filterTo = (process.env.EMAIL_FILTER_TO || process.env.EMAIL_SUPPORT_ADDRESS || 'soporte@kapix.co.cr').toLowerCase().trim();
+
+      if (filterTo && filterTo !== 'all' && filterTo !== '*') {
+        const filterList = filterTo.split(',').map((f) => f.trim().toLowerCase()).filter(Boolean);
+        const destinations = [];
+
+        if (Array.isArray(parsed.to?.value)) {
+          parsed.to.value.forEach((t) => t.address && destinations.push(t.address.toLowerCase().trim()));
+        }
+        if (Array.isArray(parsed.cc?.value)) {
+          parsed.cc.value.forEach((c) => c.address && destinations.push(c.address.toLowerCase().trim()));
+        }
+        if (Array.isArray(parsed.bcc?.value)) {
+          parsed.bcc.value.forEach((b) => b.address && destinations.push(b.address.toLowerCase().trim()));
+        }
+
+        if (parsed.headers) {
+          const routingHeaders = [
+            'delivered-to',
+            'x-original-to',
+            'x-forwarded-to',
+            'x-forwarded-for',
+            'envelope-to',
+            'mailing-list',
+            'list-id',
+            'x-google-group-id',
+            'resent-to',
+            'resent-cc',
+          ];
+
+          for (const h of routingHeaders) {
+            const val = parsed.headers.get(h);
+            if (val) {
+              if (typeof val === 'string') {
+                destinations.push(val.toLowerCase().trim());
+              } else if (typeof val === 'object') {
+                destinations.push(JSON.stringify(val).toLowerCase());
+              }
+            }
+          }
+
+          const received = parsed.headers.get('received');
+          if (received) {
+            const recStr = Array.isArray(received) ? received.join(' ') : String(received);
+            const matches = recStr.toLowerCase().match(/for\s+<([^>]+)>/g);
+            if (matches) {
+              matches.forEach((m) => {
+                const addr = m.replace(/for\s+<|>$/gi, '').toLowerCase().trim();
+                if (addr) destinations.push(addr);
+              });
+            }
+          }
+        }
+
+        const boxLower = (boxName || '').toLowerCase();
+        const isInSupportBox = boxLower.includes('soporte') || boxLower.includes('support');
+
+        const isTargeted = isInSupportBox || (
+          destinations.length > 0 && filterList.some((target) =>
+            destinations.some((dest) => dest.includes(target) || target.includes(dest))
+          )
+        );
+
+        if (!isTargeted) {
+          console.log(`ℹ Correo ignorado (no está dirigido a ${filterTo}): "${subject}" de ${senderEmail}`);
+          return;
+        }
+      }
+    }
+
+
+
+    console.log(`📨 Procesando correo entrante de: ${senderName} <${senderEmail}> | Asunto: "${subject}"`);
 
     if (existingConversation) {
       await this.appendMessageToConversation(existingConversation, {
