@@ -23,17 +23,19 @@ function sendUpdateStatus(data) {
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
-const GITHUB_TOKEN = process.env.GH_TOKEN || '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';
-try {
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'kapixcr',
-    repo: 'kasupport',
-    private: true,
-    token: GITHUB_TOKEN,
-  });
-} catch (err) {
-  console.warn('Error setting autoUpdater feed URL:', err);
+const GITHUB_TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+if (GITHUB_TOKEN) {
+  try {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'kapixcr',
+      repo: 'kasupport',
+      private: true,
+      token: GITHUB_TOKEN,
+    });
+  } catch (err) {
+    console.warn('Error setting autoUpdater feed URL:', err);
+  }
 }
 
 autoUpdater.on('checking-for-update', () => {
