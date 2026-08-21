@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   API,
   api,
+  getBackendUrl,
+  setBackendUrl,
+  checkBackendHealth,
   getKapixAgentUrl,
   setKapixAgentUrl,
   DEFAULT_KAPIX_AGENT_URL,
@@ -41,6 +44,7 @@ import {
   Smartphone,
   Unlink,
   CheckCircle2,
+  AlertCircle,
   Sparkles,
   Bot,
   UserPlus,
@@ -412,7 +416,7 @@ interface UpdateStatusState {
 }
 
 function UpdatesManager() {
-  const [version, setVersion] = useState<string>("0.1.1");
+  const [version, setVersion] = useState<string>("0.1.2");
   const [statusData, setStatusData] = useState<UpdateStatusState>({ status: "idle" });
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -597,6 +601,31 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
 
   const [kapixUrl, setKapixUrl] = useState(() => getKapixAgentUrl());
   const [kapixUrlSaved, setKapixUrlSaved] = useState(false);
+
+  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
+  const [backendUrlSaved, setBackendUrlSaved] = useState(false);
+  const [testingBackend, setTestingBackend] = useState(false);
+  const [backendTestResult, setBackendTestResult] = useState<{ ok: boolean; message?: string } | null>(null);
+
+  const handleTestBackend = async () => {
+    setTestingBackend(true);
+    setBackendTestResult(null);
+    try {
+      const res = await checkBackendHealth(backendUrl);
+      setBackendTestResult(res);
+    } finally {
+      setTestingBackend(false);
+    }
+  };
+
+  const handleSaveBackendUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = backendUrl.trim();
+    if (!clean) return;
+    setBackendUrl(clean);
+    setBackendUrlSaved(true);
+    setTimeout(() => setBackendUrlSaved(false), 2000);
+  };
 
   const load = () => {
     api.channels().then(setChannels).catch(() => {});
@@ -1036,6 +1065,91 @@ export function SettingsModal({ me, theme, onThemeChange, darkMode, onDarkModeCh
 
           {tab === "kapix_agent" && (
             <div className="space-y-4">
+              {/* Servidor Backend (API) */}
+              <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      Servidor Backend (API & WebSockets)
+                    </h3>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Dirección del servidor principal donde se ejecutan los tickets y mensajes
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveBackendUrl} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                      URL del Backend
+                    </label>
+                    <input
+                      type="url"
+                      value={backendUrl}
+                      onChange={(e) => {
+                        setBackendUrlState(e.target.value);
+                        setBackendTestResult(null);
+                      }}
+                      placeholder="http://localhost:4100 o https://tu-servidor.com"
+                      required
+                      className="w-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-indigo-400 font-mono"
+                    />
+                  </div>
+
+                  {backendTestResult && (
+                    <div
+                      className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                        backendTestResult.ok
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                          : "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+                      }`}
+                    >
+                      {backendTestResult.ok ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-semibold">
+                          {backendTestResult.ok ? "¡Conexión exitosa con el backend!" : "Error de conexión:"}
+                        </p>
+                        {backendTestResult.message && <p className="text-[11px] mt-0.5">{backendTestResult.message}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={handleTestBackend}
+                      disabled={testingBackend}
+                      className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${testingBackend ? "animate-spin" : ""}`} />
+                      <span>{testingBackend ? "Probando..." : "Probar Conexión"}</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {backendUrlSaved && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> ¡Guardado! Reinicia para aplicar
+                        </span>
+                      )}
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer"
+                      >
+                        Guardar Backend
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              {/* Servidor Kapix Agent */}
               <div className="bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">

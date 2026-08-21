@@ -1,9 +1,42 @@
 import { io } from "socket.io-client";
 
-export const API: string =
-  localStorage.getItem("kasupport_api_url") ||
-  (import.meta.env.VITE_API_URL as string) ||
-  "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io";
+export function getBackendUrl(): string {
+  return (
+    localStorage.getItem("kasupport_api_url") ||
+    (import.meta.env.VITE_API_URL as string) ||
+    "http://jdycqg6dnnt1x8qxav2bvbgd.192.99.247.181.sslip.io"
+  );
+}
+
+export function setBackendUrl(url: string) {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  if (trimmed) {
+    localStorage.setItem("kasupport_api_url", trimmed);
+  } else {
+    localStorage.removeItem("kasupport_api_url");
+  }
+}
+
+export async function checkBackendHealth(targetUrl?: string): Promise<{ ok: boolean; message?: string }> {
+  const url = (targetUrl || getBackendUrl()).replace(/\/+$/, "");
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${url}/api/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      return { ok: true };
+    }
+    return { ok: false, message: `El servidor respondió con código HTTP ${res.status} (${res.statusText})` };
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      return { ok: false, message: "Tiempo de espera agotado (timeout) conectando al servidor." };
+    }
+    return { ok: false, message: e?.message || "No se pudo establecer conexión con el servidor." };
+  }
+}
+
+export const API: string = getBackendUrl();
 
 export const DEFAULT_KAPIX_AGENT_URL = "http://127.0.0.1:3080";
 
@@ -218,12 +251,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const baseUrl = getBackendUrl();
   let r: Response;
   try {
-    r = await fetch(`${API}${path}`, { headers, ...init });
+    r = await fetch(`${baseUrl}${path}`, { headers, ...init });
   } catch (err: any) {
     const detail = err?.message || String(err || "");
-    throw new Error(`No se pudo conectar con el servidor backend (${API})${detail ? `: ${detail}` : ""}`);
+    throw new Error(`No se pudo conectar con el servidor backend (${baseUrl})${detail ? `: ${detail}` : ""}`);
   }
 
 
